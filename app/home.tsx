@@ -1,13 +1,17 @@
 import React, { useState } from "react";
-import { View, StyleSheet, SafeAreaView } from "react-native";
-import Header from "../src/components/Header";
+import { SafeAreaView, StyleSheet, View } from "react-native";
 import BottomTab from "../src/components/BottomTab";
-import HomeScreen from "../src/screens/HomeScreen";
-import TemperatureScreen from "../src/screens/TemperatureScreen";
-import ForecastScreen from "../src/screens/ForecastScreen";
-import StressScreen from "../src/screens/StressScreen";
-import RecordsScreen from "../src/screens/RecordsScreen";
+import Header from "../src/components/Header";
 import AddRecordScreen from "../src/screens/AddRecordScreen";
+import ForecastScreen from "../src/screens/ForecastScreen";
+import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
+import HomeScreen from "../src/screens/HomeScreen";
+import IdentificationResultsScreen from "../src/screens/IdentificationResultsScreen";
+import MediaUploadScreen from "../src/screens/MediaUploadScreen";
+import RecordsScreen from "../src/screens/RecordsScreen";
+import StressScreen from "../src/screens/StressScreen";
+import TemperatureScreen from "../src/screens/TemperatureScreen";
+import TrackingHistoryScreen from "../src/screens/TrackingHistoryScreen";
 // Import other screens as you create them
 
 import { colors } from "../src/constants/colors";
@@ -50,7 +54,23 @@ export default function Home() {
 
 
         // Tab 2: coral & its sub-screens
-
+        if (activeIndex === 2) {
+            switch (currentView) {
+                case "IDENTIFICATION_RESULTS":
+                    return <IdentificationResultsScreen onTrackGrowth={() => setCurrentView("GROWTH_DETAILS")} />;
+                case "GROWTH_DETAILS":
+                    return <GrowthDetailsScreen onBack={() => setCurrentView("LIST")} />; 
+                case "TRACKING_HISTORY":
+                    return <TrackingHistoryScreen onViewDetails={() => setCurrentView("GROWTH_DETAILS")} />;
+                default:
+                    return (
+                        <MediaUploadScreen 
+                            onBrowse={() => setCurrentView("IDENTIFICATION_RESULTS")} 
+                            onHistory={() => setCurrentView("TRACKING_HISTORY")}
+                        />
+                    );
+            }
+        }
 
         // Tab 3: coral bleaching & its sub-screens
 
