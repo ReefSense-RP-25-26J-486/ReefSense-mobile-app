@@ -1,6 +1,6 @@
-import React from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface RecordsScreenProps {
     onBack: () => void;
@@ -30,7 +30,7 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
             {/* Main Container with Border */}
             <View style={styles.tableCard}>
                 {/* Vertical Scroll for Rows */}
-                <ScrollView vertical showsVerticalScrollIndicator={true}>
+                <ScrollView showsVerticalScrollIndicator={true}>
                     {/* Horizontal Scroll for Columns */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                         <View>
