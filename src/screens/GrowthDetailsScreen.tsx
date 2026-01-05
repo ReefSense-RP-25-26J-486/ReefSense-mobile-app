@@ -1,14 +1,20 @@
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 
 interface GrowthDetailsScreenProps {
     onBack: () => void;
+    onBackToUploads: () => void; 
 }
 
-export default function GrowthDetailsScreen({ onBack }: GrowthDetailsScreenProps) {
+export default function GrowthDetailsScreen({ onBack, onBackToUploads }: GrowthDetailsScreenProps) {
     return (
-        <View style={styles.container}>
+        <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+            {/* Back Navigation Link */}
+            <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
+                <Text style={styles.backText}>{"< Return to Overview"}</Text>
+            </TouchableOpacity>
+
             <View style={styles.mainCard}>
                 <Text style={styles.scientificName}>Euphyllidae</Text>
                 <Text style={styles.date}>Nov 15, 2025</Text>
@@ -37,14 +43,17 @@ export default function GrowthDetailsScreen({ onBack }: GrowthDetailsScreenProps
             </View>
 
             <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-                <Text style={styles.backText}>Back to Results</Text>
+                <Text style={styles.btnTextWhite}>Back to Results</Text>
             </TouchableOpacity>
-        </View>
+            <View style={{ height: 100 }} />
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    screen: { flex: 1, backgroundColor: '#FFFFFF' },
+    backLink: { marginBottom: 10, paddingVertical: 5 },
+    backText: { color: "#517AAD", fontWeight: "bold", fontSize: 16, marginTop: 8 },
     mainCard: { backgroundColor: colors.card, padding: 20, borderRadius: 15, marginBottom: 20 },
     scientificName: { fontSize: 18, color: colors.textSecondary },
     date: { fontSize: 20, fontWeight: 'bold', marginVertical: 10 },
@@ -60,5 +69,5 @@ const styles = StyleSheet.create({
     historyDate: { fontSize: 14, color: colors.textSecondary },
     historyVal: { fontSize: 14, fontWeight: 'bold', color: colors.textSecondary },
     backBtn: { backgroundColor: '#5D81B4', padding: 15, borderRadius: 12, marginTop: 20, alignItems: 'center' },
-    backText: { color: 'white', fontWeight: 'bold' }
+    btnTextWhite: { color: 'white', fontWeight: 'bold' }
 });

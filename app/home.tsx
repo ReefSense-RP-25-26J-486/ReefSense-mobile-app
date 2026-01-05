@@ -57,11 +57,26 @@ export default function Home() {
         if (activeIndex === 2) {
             switch (currentView) {
                 case "IDENTIFICATION_RESULTS":
-                    return <IdentificationResultsScreen onTrackGrowth={() => setCurrentView("GROWTH_DETAILS")} />;
+                    return (
+                        <IdentificationResultsScreen 
+                            onBackToUploads={() => setCurrentView("LIST")} 
+                            onTrackGrowth={() => setCurrentView("GROWTH_DETAILS")} 
+                        />
+                    );
                 case "GROWTH_DETAILS":
-                    return <GrowthDetailsScreen onBack={() => setCurrentView("LIST")} />; 
+                    return (
+                        <GrowthDetailsScreen 
+                            onBackToUploads={() => setCurrentView("LIST")} 
+                            onBack={() => setCurrentView("IDENTIFICATION_RESULTS")} 
+                        />
+                    ); 
                 case "TRACKING_HISTORY":
-                    return <TrackingHistoryScreen onViewDetails={() => setCurrentView("GROWTH_DETAILS")} />;
+                    return (
+                        <TrackingHistoryScreen 
+                            onBackToUploads={() => setCurrentView("LIST")} 
+                            onViewDetails={() => setCurrentView("GROWTH_DETAILS")} 
+                        />
+                    );
                 default:
                     return (
                         <MediaUploadScreen 

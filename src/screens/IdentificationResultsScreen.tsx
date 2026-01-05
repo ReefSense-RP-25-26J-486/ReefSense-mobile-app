@@ -4,16 +4,22 @@ import { colors } from '../constants/colors';
 
 interface IdentificationResultsScreenProps {
     onTrackGrowth: () => void;
+    onBackToUploads: () => void; 
 }
 
-export default function IdentificationResultsScreen({ onTrackGrowth }: IdentificationResultsScreenProps) {
+export default function IdentificationResultsScreen({ onTrackGrowth, onBackToUploads }: IdentificationResultsScreenProps) {
     const corals = [
         { id: 1, name: 'Euphyllide', img: require("../assets/images/crl1.png") },
         { id: 2, name: 'Euphyllide', img: require("../assets/images/crl2.png") }
     ];
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+            {/* Back Navigation Link */}
+            <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
+                <Text style={styles.backText}>{"< Return to Overview"}</Text>
+            </TouchableOpacity>
+
             <Text style={styles.title}>Identification Results</Text>
             <Image source={require("../assets/images/crl3.jpg")} style={styles.mainImg} />
             <Text style={styles.subtitle}>Identified corals</Text>
@@ -33,6 +39,9 @@ export default function IdentificationResultsScreen({ onTrackGrowth }: Identific
 }
 
 const styles = StyleSheet.create({
+    screen: { flex: 1, backgroundColor: '#FFFFFF' },
+    backLink: { marginBottom: 10, paddingVertical: 5 },
+    backText: { color: "#517AAD", fontWeight: "bold", fontSize: 16, marginTop: 8 },
     title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
     mainImg: { width: '100%', height: 200, borderRadius: 10, marginBottom: 20 },
     subtitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },

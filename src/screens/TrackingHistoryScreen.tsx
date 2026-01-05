@@ -4,11 +4,17 @@ import { colors } from '../constants/colors';
 
 interface TrackingHistoryScreenProps {
     onViewDetails: () => void;
+    onBackToUploads: () => void; 
 }
 
-export default function TrackingHistoryScreen({ onViewDetails }: TrackingHistoryScreenProps) {
+export default function TrackingHistoryScreen({ onViewDetails, onBackToUploads }: TrackingHistoryScreenProps) {
     return (
-        <ScrollView>
+        <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+            {/* Back Navigation Link */}
+            <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
+                <Text style={styles.backText}>{"< Return to Overview"}</Text>
+            </TouchableOpacity>
+
             <Text style={styles.title}>Tracking History</Text>
             {[1, 2, 3, 4].map((item) => (
                 <View key={item} style={styles.card}>
@@ -22,11 +28,15 @@ export default function TrackingHistoryScreen({ onViewDetails }: TrackingHistory
                     </View>
                 </View>
             ))}
+            <View style={{ height: 100 }} />
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
+    screen: { flex: 1, backgroundColor: '#FFFFFF' },
+    backLink: { marginBottom: 10, paddingVertical: 5 },
+    backText: { color: "#517AAD", fontWeight: "bold", fontSize: 16, marginTop: 8 },
     title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
     card: { flexDirection: 'row', backgroundColor: colors.card, padding: 15, borderRadius: 15, marginBottom: 15 },
     img: { width: 90, height: 90, borderRadius: 10 },
