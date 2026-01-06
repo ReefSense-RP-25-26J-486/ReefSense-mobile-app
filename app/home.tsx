@@ -53,6 +53,7 @@ export default function Home() {
 
 
         // Tab 3: coral bleaching & its sub-screens
+                if (activeIndex === 3) return <BleachingHome />;
 
 
 
