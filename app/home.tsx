@@ -1,14 +1,15 @@
 import React, { useState } from "react";
-import { View, StyleSheet, SafeAreaView } from "react-native";
-import Header from "../src/components/Header";
+import { SafeAreaView, StyleSheet, View } from "react-native";
 import BottomTab from "../src/components/BottomTab";
-import HomeScreen from "../src/screens/HomeScreen";
-import TemperatureScreen from "../src/screens/TemperatureScreen";
-import ForecastScreen from "../src/screens/ForecastScreen";
-import StressScreen from "../src/screens/StressScreen";
-import RecordsScreen from "../src/screens/RecordsScreen";
+import Header from "../src/components/Header";
 import AddRecordScreen from "../src/screens/AddRecordScreen";
+import ForecastScreen from "../src/screens/ForecastScreen";
+import HomeScreen from "../src/screens/HomeScreen";
+import RecordsScreen from "../src/screens/RecordsScreen";
+import StressScreen from "../src/screens/StressScreen";
+import TemperatureScreen from "../src/screens/TemperatureScreen";
 // Import other screens as you create them
+import BleachingHome from "../src/screens/sahan/BleachingHome";
 
 import { colors } from "../src/constants/colors";
 
