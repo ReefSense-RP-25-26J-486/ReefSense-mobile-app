@@ -4,6 +4,10 @@ import BottomTab from "../src/components/BottomTab";
 import Header from "../src/components/Header";
 import AddRecordScreen from "../src/screens/AddRecordScreen";
 import ForecastScreen from "../src/screens/ForecastScreen";
+import HomeScreen from "../src/screens/HomeScreen";
+import RecordsScreen from "../src/screens/RecordsScreen";
+import StressScreen from "../src/screens/StressScreen";
+import TemperatureScreen from "../src/screens/TemperatureScreen";
 import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
 import HomeScreen from "../src/screens/HomeScreen";
 import IdentificationResultsScreen from "../src/screens/IdentificationResultsScreen";
@@ -13,6 +17,9 @@ import StressScreen from "../src/screens/StressScreen";
 import TemperatureScreen from "../src/screens/TemperatureScreen";
 import TrackingHistoryScreen from "../src/screens/TrackingHistoryScreen";
 // Import other screens as you create them
+import BleachingAnalysis from "../src/screens/sahan/BleachingAnalysis";
+import BleachingHistory from "../src/screens/sahan/BleachingHistory";
+import BleachingHome from "../src/screens/sahan/BleachingHome";
 
 import { colors } from "../src/constants/colors";
 
@@ -88,6 +95,15 @@ export default function Home() {
         }
 
         // Tab 3: coral bleaching & its sub-screens
+                if (activeIndex === 3) {
+                    if (currentView === 'BLEACHING_ANALYSIS') {
+                        return <BleachingAnalysis onClose={() => setCurrentView('LIST')} />;
+                    }
+                    if (currentView === 'BLEACHING_HISTORY') {
+                        return <BleachingHistory onBack={() => setCurrentView('LIST')} />;
+                    }
+                    return <BleachingHome onRunAnalysis={() => setCurrentView('BLEACHING_ANALYSIS')} onViewHistory={() => setCurrentView('BLEACHING_HISTORY')} onBack={() => setActiveIndex(0)} />;
+                }
 
 
 
