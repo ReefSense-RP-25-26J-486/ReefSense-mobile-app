@@ -30,7 +30,7 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
             {/* Main Container with Border */}
             <View style={styles.tableCard}>
                 {/* Vertical Scroll for Rows */}
-                <ScrollView  showsVerticalScrollIndicator={true}>
+                <ScrollView showsVerticalScrollIndicator={true}>
                     {/* Horizontal Scroll for Columns */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                         <View>
