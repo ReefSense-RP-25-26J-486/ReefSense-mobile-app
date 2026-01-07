@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Image, TouchableOpacity, ImageSourcePropType } from "react-native";
+import { Image, ImageSourcePropType, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 
 interface BottomTabProps {
     activeIndex: number;
@@ -53,12 +53,13 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 60,
         borderTopRightRadius: 60,
-        paddingTop: 0,
+        paddingTop: 6,
+        paddingBottom: Platform.OS === 'ios' ? 8 : 4,
     },
     tabContainer: {
         width: '100%',
         paddingHorizontal: 20,
-        paddingBottom: 40,
+        paddingBottom: Platform.OS === 'ios' ? 12 : 8,
     },
     tab: {
         flexDirection: "row",
