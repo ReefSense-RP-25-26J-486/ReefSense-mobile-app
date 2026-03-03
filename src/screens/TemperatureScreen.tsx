@@ -76,10 +76,6 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
                     <View key={index} style={styles.dataRow}>
                         <Text style={styles.depthText}>{item.depth_range}</Text>
                         <Text style={styles.tempText}>{item.current_temp}</Text>
-                        <View style={{
-                            width: 20, height: 20, borderRadius: 7,
-                            backgroundColor: item.stress_status === "High" ? "#dc5f56" : "#5fbe63"
-                        }} />
                     </View>
                 ))}
             </View>
