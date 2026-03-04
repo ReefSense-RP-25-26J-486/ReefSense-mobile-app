@@ -244,10 +244,16 @@ const chartConfig = {
     backgroundColor: "#ffffff",
     backgroundGradientFrom: "#ffffff",
     backgroundGradientTo: "#ffffff",
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(81, 122, 173, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(50, 50, 50, ${opacity})`,
-    propsForDots: { r: "5", strokeWidth: "2", stroke: "#517AAD" },
+    decimalPlaces: 2,
+    color: (opacity = 1) => `rgba(0, 180, 216, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    propsForDots: { r: "5", strokeWidth: "2", stroke: "#00B4D8" },
+    propsForBackgroundLines: { stroke: "rgba(0,0,0,0.05)" },
+
+    // dark blue
+    //color: (opacity = 1) => `rgba(81, 122, 173, ${opacity})`,
+    //labelColor: (opacity = 1) => `rgba(50, 50, 50, ${opacity})`,
+    //propsForDots: { r: "5", strokeWidth: "2", stroke: "#517AAD" },
 };
 
 const styles = StyleSheet.create({

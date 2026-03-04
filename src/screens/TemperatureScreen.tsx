@@ -128,9 +128,9 @@ const styles = StyleSheet.create({
         fontWeight: '400',
     },
     tempBig: {
-        fontSize: 80,
-        fontWeight: '400',
-        color: '#000',
+        fontSize: 60,
+        fontWeight: '300',
+        color: '#3b3b3b',
         marginTop: -10,
     },
     weatherImg: {
