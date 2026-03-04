@@ -9,6 +9,8 @@ interface TempProps {
     onGoToRecords: () => void;
 }
 
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+
 export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoToRecords }: TempProps) {
     const [apiData, setApiData] = useState<any>(null);
     const getTimeBlock = () => {
@@ -34,7 +36,7 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
     };
 
     useEffect(() => {
-        fetch("https://gimhanibrahmanage-reefsense-ai.hf.space/api/dashboard")
+        fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
             .then((json) => setApiData(json))
             .catch((err) => console.error("AI Fetch Error:", err));

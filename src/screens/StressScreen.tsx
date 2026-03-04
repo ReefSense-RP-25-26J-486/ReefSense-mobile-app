@@ -12,6 +12,8 @@ interface StressScreenProps {
     onBack: () => void;
 }
 
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+
 export default function StressScreen({ onBack }: StressScreenProps) {
     const [apiData, setApiData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ export default function StressScreen({ onBack }: StressScreenProps) {
     };
 
     useEffect(() => {
-        fetch("https://gimhanibrahmanage-reefsense-ai.hf.space/api/dashboard")
+        fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
             .then((json) => {
                 setApiData(json);

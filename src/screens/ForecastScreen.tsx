@@ -7,13 +7,15 @@ const screenWidth = Dimensions.get("window").width;
 // depth keys
 type DepthKey = "3m" | "7m" | "10m";
 
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+
 export default function ForecastScreen({ onBack }: { onBack: () => void }) {
     const [apiData, setApiData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [selectedDepth, setSelectedDepth] = useState<DepthKey>("3m");
 
     useEffect(() => {
-        fetch("https://gimhanibrahmanage-reefsense-ai.hf.space/api/dashboard")
+        fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
             .then((json) => {
                 setApiData(json);
