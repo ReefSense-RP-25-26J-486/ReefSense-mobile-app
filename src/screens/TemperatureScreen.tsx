@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
 
 interface TempProps {
     onGoToForecast: () => void;
@@ -8,17 +9,59 @@ interface TempProps {
     onGoToRecords: () => void;
 }
 
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+
 export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoToRecords }: TempProps) {
+    const [apiData, setApiData] = useState<any>(null);
+    const getTimeBlock = () => {
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour < 6) return "00:00 AM - 06:00 AM";
+        if (hour >= 6 && hour < 12) return "06:00 AM - 12:00 PM";
+        if (hour >= 12 && hour < 18) return "12:00 PM - 06:00 PM";
+        return "06:00 PM - 12:00 AM";
+    };
+
+    const getWeatherImage = () => {
+        const hour = new Date().getHours();
+
+        if (hour >= 0 && hour < 6) {
+            return require("../assets/images/moon-stars.png");
+        } else if (hour >= 6 && hour < 12) {
+            return require("../assets/images/bright-sun.png");
+        } else if (hour >= 12 && hour < 18) {
+            return require("../assets/images/sun-cloud.png");
+        } else {
+            return require("../assets/images/moon-cloud.png");
+        }
+    };
+
+    useEffect(() => {
+        fetch(`${BASE_URL}/api/dashboard`)
+            .then((res) => res.json())
+            .then((json) => setApiData(json))
+            .catch((err) => console.error("AI Fetch Error:", err));
+    }, []);
+
+    const mainTemp = apiData?.header?.main_temp ? `${Math.round(parseFloat(apiData.header.main_temp))}°C` : "--°C";
+    const readingTime = apiData?.header?.reading_time || "Loading...";
+    const depthList = apiData?.window_1 || [];
+
     return (
         <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
             {/* Weather Header Section */}
             <View style={styles.weatherSection}>
                 <View>
-                    <Text style={styles.date}>Today, 18 Sep</Text>
-                    <Text style={styles.tempBig}>27°C</Text>
+                    <Text style={styles.date}>{readingTime}</Text>
+                    <Text style={{fontSize: 14, color: '#708090', marginTop: 5}}>Current Air Temp</Text>
+                    <Text style={styles.tempBig}>{mainTemp}</Text>
+
+                    <View style={styles.timeBlockBadge}>
+                        <MaterialIcons name="access-time" size={16} color="#4A78D0" />
+                        <Text style={styles.timeBlockText}>{getTimeBlock()}</Text>
+                    </View>
                 </View>
                 <Image
-                    source={require("../assets/images/sun-cloud.png")}
+                    source={getWeatherImage()}
                     style={styles.weatherImg}
                     resizeMode="contain"
                 />
@@ -31,20 +74,12 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
                     <Text style={styles.label}>Coral Site Temperature</Text>
                 </View>
 
-                <View style={styles.dataRow}>
-                    <Text style={styles.depthText}>0 - 2 m</Text>
-                    <Text style={styles.tempText}>26.5 °C</Text>
-                </View>
-
-                <View style={styles.dataRow}>
-                    <Text style={styles.depthText}>3 - 6 m</Text>
-                    <Text style={styles.tempText}>26.0 °C</Text>
-                </View>
-
-                <View style={styles.dataRow}>
-                    <Text style={styles.depthText}>7 - 10 m</Text>
-                    <Text style={styles.tempText}>25.4 °C</Text>
-                </View>
+                {depthList.map((item: any, index: number) => (
+                    <View key={index} style={styles.dataRow}>
+                        <Text style={styles.depthText}>{item.depth_range}</Text>
+                        <Text style={styles.tempText}>{item.current_temp}</Text>
+                    </View>
+                ))}
             </View>
 
             {/* Navigation Cards */}
@@ -95,9 +130,9 @@ const styles = StyleSheet.create({
         fontWeight: '400',
     },
     tempBig: {
-        fontSize: 80,
-        fontWeight: '400',
-        color: '#000',
+        fontSize: 60,
+        fontWeight: '300',
+        color: '#3b3b3b',
         marginTop: -10,
     },
     weatherImg: {
@@ -126,7 +161,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         backgroundColor: '#BDCDE9',
         paddingVertical: 14,
-        paddingHorizontal: 20,
+        paddingHorizontal: 30,
         borderRadius: 15,
         marginBottom: 12
     },
@@ -137,6 +172,7 @@ const styles = StyleSheet.create({
     tempText: {
         fontSize: 16,
         color: '#444',
+        paddingLeft: 150,
     },
     navCard: {
         backgroundColor: '#DEE7F7',
@@ -161,5 +197,23 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#708090',
         lineHeight: 18,
+    },
+    timeBlockBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E8F0FE',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        marginTop: 5,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: '#D1E3FF'
+    },
+    timeBlockText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#4A78D0',
+        marginLeft: 5,
     },
 });
