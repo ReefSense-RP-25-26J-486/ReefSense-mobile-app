@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Alert, KeyboardAvoidingView} from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Alert, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
@@ -8,12 +8,21 @@ interface AddRecordScreenProps {
     onBack: () => void;
 }
 
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_DATA
+
 const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
     const [date, setDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [longitude, setLongitude] = useState('');
     const [latitude, setLatitude] = useState('');
+
+    // Temperature States
+    const [temp02m, setTemp02m] = useState('');
+    const [temp36m, setTemp36m] = useState('');
+    const [temp710m, setTemp710m] = useState('');
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const onDateChange = (event: any, selectedDate?: Date) => {
         setShowDatePicker(Platform.OS === 'ios');
@@ -34,6 +43,47 @@ const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
         let location = await Location.getCurrentPositionAsync({});
         setLongitude(location.coords.longitude.toString());
         setLatitude(location.coords.latitude.toString());
+    };
+
+    const handleSubmit = async () => {
+        if (!temp02m || !temp36m || !temp710m || !longitude || !latitude) {
+            Alert.alert("Missing Info", "Please fill in all fields before submitting.");
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        const payload = {
+            date: date.toLocaleDateString('en-GB'),
+            time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+            longitude: longitude,
+            latitude: latitude,
+            temp3m: parseFloat(temp02m),
+            temp7m: parseFloat(temp36m),
+            temp10m: parseFloat(temp710m)
+        };
+
+        try {
+            const response = await fetch(`${BASE_URL}/api/add`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                Alert.alert("Success", "Record saved!");
+                onBack(); // Go back to records list
+            } else {
+                const errorData = await response.json();
+                Alert.alert("Error", errorData.detail || "Failed to save record.");
+            }
+        } catch (error) {
+            Alert.alert("Connection Error", "Check your Connection.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -102,26 +152,57 @@ const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
 
                 <View style={styles.tempRow}>
                     <Text style={styles.tempLabel}>At 0-2 m Depth</Text>
-                    <TextInput style={styles.tempInput} keyboardType="numeric" placeholder="0.0" />
+                    <TextInput
+                        style={styles.tempInput}
+                        keyboardType="numeric"
+                        placeholder="0.0"
+                        value={temp02m}
+                        onChangeText={setTemp02m}
+                    />
                 </View>
 
                 <View style={styles.tempRow}>
                     <Text style={styles.tempLabel}>At 3-6 m Depth</Text>
-                    <TextInput style={styles.tempInput} keyboardType="numeric" placeholder="0.0" />
+                    <TextInput
+                        style={styles.tempInput}
+                        keyboardType="numeric"
+                        placeholder="0.0"
+                        value={temp36m}
+                        onChangeText={setTemp36m}
+                    />
                 </View>
 
                 <View style={styles.tempRow}>
                     <Text style={styles.tempLabel}>At 7-10 m Depth</Text>
-                    <TextInput style={styles.tempInput} keyboardType="numeric" placeholder="0.0" />
+                    <TextInput
+                        style={styles.tempInput}
+                        keyboardType="numeric"
+                        placeholder="0.0"
+                        value={temp710m}
+                        onChangeText={setTemp710m}
+                    />
                 </View>
 
                 {/* Buttons */}
                 <View style={styles.buttonRow}>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={onBack}>
+                    <TouchableOpacity
+                        style={styles.cancelBtn}
+                        onPress={onBack}
+                        disabled={isSubmitting}
+                    >
                         <Text style={styles.btnText}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.submitBtn} onPress={onBack}>
-                        <Text style={styles.btnText}>Submit</Text>
+
+                    <TouchableOpacity
+                        style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
+                        onPress={handleSubmit}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.btnText}>Submit</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -132,10 +213,30 @@ const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
 };
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: '#FFF', paddingHorizontal: 12 },
-    pageTitle: { fontSize: 20, fontWeight: 'bold', marginVertical: 20, color: '#000', marginBottom: 25 },
-    label: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: '#000' },
-    sectionHeader: { fontSize: 16, fontWeight: 'bold', marginTop: 20, marginBottom: 15 },
+    screen: {
+        flex: 1,
+        backgroundColor: '#FFF',
+        paddingHorizontal: 12
+    },
+    pageTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginVertical: 20,
+        color: '#000',
+        marginBottom: 25
+    },
+    label: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 8,
+        color: '#000'
+    },
+    sectionHeader: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginTop: 20,
+        marginBottom: 15
+    },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -147,19 +248,80 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         justifyContent: 'space-between'
     },
-    inputText: { fontSize: 16, color: '#000' },
-    locationRow: { flexDirection: 'row', alignItems: 'center' },
-    inlineInputGroup: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-    inlineLabel: { width: 80, fontSize: 16, color: '#818181' },
-    smallInput: { flex: 1, borderWidth: 1, borderColor: '#517AAD', borderRadius: 5, height: 40, paddingHorizontal: 8 },
-    locationButton: { backgroundColor: '#DEE7F7', padding: 15, borderRadius: 50, marginLeft: 15 },
-    tempRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-    tempLabel: { flex: 1, fontSize: 16, color: '#818181'},
-    tempInput: { width: '60%', borderWidth: 1, borderColor: '#517AAD', borderRadius: 5, height: 40, paddingHorizontal: 10 },
-    buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 30 },
-    cancelBtn: { backgroundColor: '#F36464', paddingVertical: 15, borderRadius: 12, width: '45%', alignItems: 'center' },
-    submitBtn: { backgroundColor: '#517AAD', paddingVertical: 15, borderRadius: 12, width: '45%', alignItems: 'center' },
-    btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
+    inputText: {
+        fontSize: 16,
+        color: '#000'
+    },
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center'
+    },
+    inlineInputGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10
+    },
+    inlineLabel: {
+        width: 80,
+        fontSize: 16,
+        color: '#818181'
+    },
+    smallInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: '#517AAD',
+        borderRadius: 5,
+        height: 40,
+        paddingHorizontal: 8
+    },
+    locationButton: {
+        backgroundColor: '#DEE7F7',
+        padding: 15,
+        borderRadius: 50,
+        marginLeft: 15
+    },
+    tempRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 15
+    },
+    tempLabel: {
+        flex: 1,
+        fontSize: 16,
+        color: '#818181'
+    },
+    tempInput: {
+        width: '60%',
+        borderWidth: 1,
+        borderColor: '#517AAD',
+        borderRadius: 5,
+        height: 40,
+        paddingHorizontal: 10
+    },
+    buttonRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 30
+    },
+    cancelBtn: {
+        backgroundColor: '#F36464',
+        paddingVertical: 15,
+        borderRadius: 12,
+        width: '45%',
+        alignItems: 'center'
+    },
+    submitBtn: {
+        backgroundColor: '#517AAD',
+        paddingVertical: 15,
+        borderRadius: 12,
+        width: '45%',
+        alignItems: 'center'
+    },
+    btnText: {
+        color: '#FFF',
+        fontWeight: 'bold',
+        fontSize: 16
+    }
 });
 
 export default AddRecordScreen;
