@@ -18,7 +18,7 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
     const fetchRecords = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${BASE_URL}/api/records`);
+            const response = await fetch(`${BASE_URL}/api/data/records`);
             if (response.ok) {
                 const data = await response.json();
                 setTableData(data.sort((a: any, b: any) => a.id - b.id));
@@ -41,7 +41,7 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            const res = await fetch(`${BASE_URL}/api/delete/${dbId}`, {
+                            const res = await fetch(`${BASE_URL}/api/data/records/${dbId}`, {
                                 method: 'DELETE'
                             });
                             if (res.ok) fetchRecords();
@@ -57,7 +57,7 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
     const handleUpdate = async () => {
         if (!selectedRecord) return;
         try {
-            const res = await fetch(`${BASE_URL}/api/update/${selectedRecord.id}`, {
+            const res = await fetch(`${BASE_URL}/api/data/records/${selectedRecord.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
