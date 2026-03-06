@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Alert, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface AddRecordScreenProps {
     onBack: () => void;
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_DATA
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL
 
 const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
     const [date, setDate] = useState(new Date());
