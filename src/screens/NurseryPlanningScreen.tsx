@@ -1,27 +1,27 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Alert,
   ActivityIndicator,
-  Platform,
-  Modal,
-  KeyboardAvoidingView,
+  Alert,
   Dimensions,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Fixed map height — avoids the MapView flex-expansion bug on iOS/Android
 const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.44);
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS;
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const PORT_CITY_REGION = {
   latitude: 6.9297,

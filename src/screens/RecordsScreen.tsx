@@ -1,13 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface RecordsScreenProps {
     onBack: () => void;
     onAdd: () => void;
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_DATA
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL
 
 const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
     const [tableData, setTableData] = useState<any[]>([]);
