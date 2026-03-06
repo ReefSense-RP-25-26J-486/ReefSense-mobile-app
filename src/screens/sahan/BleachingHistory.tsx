@@ -1,15 +1,15 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { fetchHistory, type HistoryRecord } from "../../services/api";
 
@@ -113,6 +113,9 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                   </Text>
                 </View>
                 <Text style={styles.cardNursery}>Nursery: {rec.nursery}</Text>
+                <Text style={styles.cardCoral}>
+                  Coral ID: {rec.coral_id ?? "—"}
+                </Text>
                 <Text style={styles.cardStatus}>
                   {statusLabel(rec.bleaching_percentage)}
                 </Text>
@@ -204,6 +207,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: "800", maxWidth: "60%" },
   cardDate: { color: "#9AA6BF" },
   cardNursery: { marginTop: 2, color: "#9AA6BF", fontSize: 12 },
+  cardCoral: { marginTop: 2, color: "#9AA6BF", fontSize: 12 },
   cardStatus: { marginTop: 4, color: "#34495e" },
   cardFooter: {
     marginTop: 8,
