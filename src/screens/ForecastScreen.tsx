@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from "react";
-import {View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, ActivityIndicator, FlatList} from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Dimensions, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 
 const screenWidth = Dimensions.get("window").width;
@@ -7,7 +7,7 @@ const screenWidth = Dimensions.get("window").width;
 // depth keys
 type DepthKey = "3m" | "7m" | "10m";
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL_TEMP
 
 export default function ForecastScreen({ onBack }: { onBack: () => void }) {
     const [apiData, setApiData] = useState<any>(null);
