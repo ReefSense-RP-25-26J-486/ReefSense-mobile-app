@@ -7,12 +7,17 @@ import AddRecordScreen from "../src/screens/AddRecordScreen";
 import ForecastScreen from "../src/screens/ForecastScreen";
 import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
 import HomeScreen from "../src/screens/HomeScreen";
+import NurseryPlanningScreen from "../src/screens/NurseryPlanningScreen";
 import IdentificationResultsScreen from "../src/screens/IdentificationResultsScreen";
 import MediaUploadScreen from "../src/screens/MediaUploadScreen";
 import RecordsScreen from "../src/screens/RecordsScreen";
 import StressScreen from "../src/screens/StressScreen";
 import TemperatureScreen from "../src/screens/TemperatureScreen";
 import TrackingHistoryScreen from "../src/screens/TrackingHistoryScreen";
+// Import other screens as you create them
+import BleachingAnalysis from "../src/screens/sahan/BleachingAnalysis";
+import BleachingHistory from "../src/screens/sahan/BleachingHistory";
+import BleachingHome from "../src/screens/sahan/BleachingHome";
 
 import { colors } from "../src/constants/colors";
 
@@ -25,8 +30,9 @@ export default function Home() {
   const [selectedCoralId, setSelectedCoralId] = useState<string>("");
   const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>({});
 
-  const renderContent = () => {
-    if (activeIndex === 0) return <HomeScreen />;
+    const renderContent = () => {
+        // Tab 0: GIS Nursery Planning
+        if (activeIndex === 0) return <NurseryPlanningScreen />;
 
     if (activeIndex === 1) {
       switch (currentView) {
@@ -115,8 +121,25 @@ export default function Home() {
       }
     }
 
+    // Tab 3: coral bleaching & its sub-screens
+                if (activeIndex === 3) {
+                    if (currentView === 'BLEACHING_ANALYSIS') {
+                        return <BleachingAnalysis onClose={() => setCurrentView('LIST')} />;
+                    }
+                    if (currentView === 'BLEACHING_HISTORY') {
+                        return <BleachingHistory onBack={() => setCurrentView('LIST')} />;
+                    }
+                    return <BleachingHome onRunAnalysis={() => setCurrentView('BLEACHING_ANALYSIS')} onViewHistory={() => setCurrentView('BLEACHING_HISTORY')} onBack={() => setActiveIndex(0)} />;
+                }
+
+
+
+        return <NurseryPlanningScreen />;
+    };
+
     return <HomeScreen />;
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
