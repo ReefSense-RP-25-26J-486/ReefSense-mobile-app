@@ -64,7 +64,7 @@ const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
         };
 
         try {
-            const response = await fetch(`${BASE_URL}/api/add`, {
+            const response = await fetch(`${BASE_URL}/api/data/records`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
