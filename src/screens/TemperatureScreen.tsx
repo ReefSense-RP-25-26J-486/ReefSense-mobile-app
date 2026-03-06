@@ -1,7 +1,6 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface TempProps {
     onGoToForecast: () => void;
@@ -9,7 +8,7 @@ interface TempProps {
     onGoToRecords: () => void;
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL_TEMP
 
 export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoToRecords }: TempProps) {
     const [apiData, setApiData] = useState<any>(null);

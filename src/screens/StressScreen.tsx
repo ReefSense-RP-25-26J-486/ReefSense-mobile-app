@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart } from "react-native-chart-kit";
-import recommendationIcon from '../assets/icons/recommendation_icon.png';
 import alertIcon from '../assets/icons/alert_icon.png';
+import recommendationIcon from '../assets/icons/recommendation_icon.png';
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -12,7 +12,7 @@ interface StressScreenProps {
     onBack: () => void;
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL_TEMP
 
 export default function StressScreen({ onBack }: StressScreenProps) {
     const [apiData, setApiData] = useState<any>(null);
