@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { SafeAreaView, StyleSheet, View } from "react-native";
+import { AnalyzedCoral } from "../src/api/growthApi";
 import BottomTab from "../src/components/BottomTab";
 import Header from "../src/components/Header";
 import AddRecordScreen from "../src/screens/AddRecordScreen";
 import ForecastScreen from "../src/screens/ForecastScreen";
 import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
-import HomeScreen from "../src/screens/HomeScreen";
 import IdentificationResultsScreen from "../src/screens/IdentificationResultsScreen";
 import MediaUploadScreen from "../src/screens/MediaUploadScreen";
+import NurseryPlanningScreen from "../src/screens/NurseryPlanningScreen";
 import RecordsScreen from "../src/screens/RecordsScreen";
 import StressScreen from "../src/screens/StressScreen";
 import TemperatureScreen from "../src/screens/TemperatureScreen";
@@ -22,12 +23,20 @@ import { colors } from "../src/constants/colors";
 export default function Home() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [currentView, setCurrentView] = useState("LIST");
+  const [analyzeResults, setAnalyzeResults] = useState<AnalyzedCoral[]>([]);
+  const [analyzedImageUri, setAnalyzedImageUri] = useState<string>("");
+  const [annotatedImageBase64, setAnnotatedImageBase64] = useState<
+    string | null
+  >(null);
+  const [selectedCoralId, setSelectedCoralId] = useState<string>("");
+  const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>(
+    {},
+  );
 
   const renderContent = () => {
-    // Tab 0: Location & its sub-screens
-    if (activeIndex === 0) return <HomeScreen />;
+    // Tab 0: GIS Nursery Planning
+    if (activeIndex === 0) return <NurseryPlanningScreen />;
 
-    // Tab 1: Temperature & its sub-screens
     if (activeIndex === 1) {
       switch (currentView) {
         case "FORECAST":
@@ -54,19 +63,29 @@ export default function Home() {
       }
     }
 
-    // Tab 2: coral & its sub-screens
     if (activeIndex === 2) {
       switch (currentView) {
         case "IDENTIFICATION_RESULTS":
           return (
             <IdentificationResultsScreen
+              corals={analyzeResults}
+              imageUri={analyzedImageUri}
+              annotatedImage={annotatedImageBase64}
+              savedCoralIds={savedCoralIds}
+              onCoralSaved={(tempId, userCoralId) =>
+                setSavedCoralIds((prev) => ({ ...prev, [tempId]: userCoralId }))
+              }
               onBackToUploads={() => setCurrentView("LIST")}
-              onTrackGrowth={() => setCurrentView("GROWTH_DETAILS")}
+              onTrackGrowth={(coralId) => {
+                setSelectedCoralId(coralId);
+                setCurrentView("GROWTH_DETAILS");
+              }}
             />
           );
         case "GROWTH_DETAILS":
           return (
             <GrowthDetailsScreen
+              coralId={selectedCoralId}
               onBackToUploads={() => setCurrentView("LIST")}
               onBack={() => setCurrentView("IDENTIFICATION_RESULTS")}
             />
@@ -75,13 +94,30 @@ export default function Home() {
           return (
             <TrackingHistoryScreen
               onBackToUploads={() => setCurrentView("LIST")}
-              onViewDetails={() => setCurrentView("GROWTH_DETAILS")}
+              onViewDetails={(coralId) => {
+                setSelectedCoralId(coralId);
+                setCurrentView("TRACKING_DETAIL");
+              }}
+            />
+          );
+        case "TRACKING_DETAIL":
+          return (
+            <GrowthDetailsScreen
+              coralId={selectedCoralId}
+              onBack={() => setCurrentView("TRACKING_HISTORY")}
+              onBackToUploads={() => setCurrentView("LIST")}
             />
           );
         default:
           return (
             <MediaUploadScreen
-              onBrowse={() => setCurrentView("IDENTIFICATION_RESULTS")}
+              onBrowse={(result, imageUri) => {
+                setAnalyzeResults(result.corals);
+                setAnalyzedImageUri(imageUri);
+                setAnnotatedImageBase64(result.annotatedImage);
+                setSavedCoralIds({});
+                setCurrentView("IDENTIFICATION_RESULTS");
+              }}
               onHistory={() => setCurrentView("TRACKING_HISTORY")}
             />
           );
@@ -105,7 +141,7 @@ export default function Home() {
       );
     }
 
-    return <HomeScreen />;
+    return <NurseryPlanningScreen />;
   };
 
   return (
