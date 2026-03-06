@@ -6,6 +6,7 @@ import AddRecordScreen from "../src/screens/AddRecordScreen";
 import ForecastScreen from "../src/screens/ForecastScreen";
 import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
 import HomeScreen from "../src/screens/HomeScreen";
+import NurseryPlanningScreen from "../src/screens/NurseryPlanningScreen";
 import IdentificationResultsScreen from "../src/screens/IdentificationResultsScreen";
 import MediaUploadScreen from "../src/screens/MediaUploadScreen";
 import RecordsScreen from "../src/screens/RecordsScreen";
@@ -24,8 +25,8 @@ export default function Home() {
     const [currentView, setCurrentView] = useState("LIST");
 
     const renderContent = () => {
-        // Tab 0: Location & its sub-screens
-        if (activeIndex === 0) return <HomeScreen />;
+        // Tab 0: GIS Nursery Planning
+        if (activeIndex === 0) return <NurseryPlanningScreen />;
 
 
         // Tab 1: Temperature & its sub-screens
@@ -103,7 +104,7 @@ export default function Home() {
 
 
 
-        return <HomeScreen />;
+        return <NurseryPlanningScreen />;
     };
 
     return (
