@@ -137,10 +137,6 @@ export default function Home() {
         return <NurseryPlanningScreen />;
     };
 
-    return <HomeScreen />;
-  };
-
-
   return (
     <SafeAreaView style={styles.container}>
       <Header />
