@@ -6,10 +6,9 @@ import Header from "../src/components/Header";
 import AddRecordScreen from "../src/screens/AddRecordScreen";
 import ForecastScreen from "../src/screens/ForecastScreen";
 import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
-import HomeScreen from "../src/screens/HomeScreen";
-import NurseryPlanningScreen from "../src/screens/NurseryPlanningScreen";
 import IdentificationResultsScreen from "../src/screens/IdentificationResultsScreen";
 import MediaUploadScreen from "../src/screens/MediaUploadScreen";
+import NurseryPlanningScreen from "../src/screens/NurseryPlanningScreen";
 import RecordsScreen from "../src/screens/RecordsScreen";
 import StressScreen from "../src/screens/StressScreen";
 import TemperatureScreen from "../src/screens/TemperatureScreen";
@@ -26,13 +25,17 @@ export default function Home() {
   const [currentView, setCurrentView] = useState("LIST");
   const [analyzeResults, setAnalyzeResults] = useState<AnalyzedCoral[]>([]);
   const [analyzedImageUri, setAnalyzedImageUri] = useState<string>("");
-  const [annotatedImageBase64, setAnnotatedImageBase64] = useState<string | null>(null);
+  const [annotatedImageBase64, setAnnotatedImageBase64] = useState<
+    string | null
+  >(null);
   const [selectedCoralId, setSelectedCoralId] = useState<string>("");
-  const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>({});
+  const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>(
+    {},
+  );
 
-    const renderContent = () => {
-        // Tab 0: GIS Nursery Planning
-        if (activeIndex === 0) return <NurseryPlanningScreen />;
+  const renderContent = () => {
+    // Tab 0: GIS Nursery Planning
+    if (activeIndex === 0) return <NurseryPlanningScreen />;
 
     if (activeIndex === 1) {
       switch (currentView) {
@@ -122,20 +125,24 @@ export default function Home() {
     }
 
     // Tab 3: coral bleaching & its sub-screens
-                if (activeIndex === 3) {
-                    if (currentView === 'BLEACHING_ANALYSIS') {
-                        return <BleachingAnalysis onClose={() => setCurrentView('LIST')} />;
-                    }
-                    if (currentView === 'BLEACHING_HISTORY') {
-                        return <BleachingHistory onBack={() => setCurrentView('LIST')} />;
-                    }
-                    return <BleachingHome onRunAnalysis={() => setCurrentView('BLEACHING_ANALYSIS')} onViewHistory={() => setCurrentView('BLEACHING_HISTORY')} onBack={() => setActiveIndex(0)} />;
-                }
+    if (activeIndex === 3) {
+      if (currentView === "BLEACHING_ANALYSIS") {
+        return <BleachingAnalysis onClose={() => setCurrentView("LIST")} />;
+      }
+      if (currentView === "BLEACHING_HISTORY") {
+        return <BleachingHistory onBack={() => setCurrentView("LIST")} />;
+      }
+      return (
+        <BleachingHome
+          onRunAnalysis={() => setCurrentView("BLEACHING_ANALYSIS")}
+          onViewHistory={() => setCurrentView("BLEACHING_HISTORY")}
+          onBack={() => setActiveIndex(0)}
+        />
+      );
+    }
 
-
-
-        return <NurseryPlanningScreen />;
-    };
+    return <NurseryPlanningScreen />;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
