@@ -36,6 +36,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const pickImageFromLibrary = async () => {
     try {
@@ -143,6 +144,57 @@ export default function BleachingAnalysis({ onClose }: Props) {
     if (pct < 20) return { label: "Low Severity", color: "#2ECC71" };
     if (pct < 50) return { label: "Medium Severity", color: "#F39C12" };
     return { label: "High Severity", color: "#C0392B" };
+  };
+
+  interface Suggestion {
+    icon: string;
+    text: string;
+  }
+
+  const getSuggestions = (pct: number): { title: string; color: string; icon: string; items: Suggestion[] } => {
+    if (pct < 20) {
+      return {
+        title: "Low Severity — Preventive Care",
+        color: "#2ECC71",
+        icon: "checkmark-circle-outline",
+        items: [
+          { icon: "thermometer-outline", text: "Monitor water temperature weekly to detect early heat stress." },
+          { icon: "water-outline", text: "Maintain optimal water quality: pH 8.1–8.3, salinity 33–37 ppt." },
+          { icon: "eye-outline", text: "Document coral health with photos to track any progression." },
+          { icon: "leaf-outline", text: "Reduce local stressors such as runoff, sedimentation, and pollution." },
+          { icon: "sunny-outline", text: "Ensure adequate water flow and sunlight reach all coral surfaces." },
+        ],
+      };
+    }
+    if (pct < 50) {
+      return {
+        title: "Medium Severity — Active Intervention",
+        color: "#F39C12",
+        icon: "warning-outline",
+        items: [
+          { icon: "pulse-outline", text: "Increase monitoring frequency to daily observations." },
+          { icon: "swap-horizontal-outline", text: "Consider relocating vulnerable coral fragments to cooler, shaded areas." },
+          { icon: "ban-outline", text: "Restrict anchoring and physical disturbances near affected zones." },
+          { icon: "cut-outline", text: "Control algae overgrowth to reduce competition with stressed corals." },
+          { icon: "megaphone-outline", text: "Notify local marine conservation authorities of the bleaching event." },
+          { icon: "umbrella-outline", text: "Deploy temporary shading structures if heat stress is the primary cause." },
+        ],
+      };
+    }
+    return {
+      title: "High Severity — Emergency Response",
+      color: "#C0392B",
+      icon: "alert-circle-outline",
+      items: [
+        { icon: "medkit-outline", text: "Initiate emergency coral rescue operations immediately." },
+        { icon: "construct-outline", text: "Collect and transport coral fragments to nursery tanks for recovery." },
+        { icon: "call-outline", text: "Contact reef restoration specialists and marine biologists urgently." },
+        { icon: "shield-outline", text: "Restrict all human access to the affected reef area." },
+        { icon: "flask-outline", text: "Investigate and eliminate pollution and runoff sources nearby." },
+        { icon: "document-text-outline", text: "Submit a formal incident report to environmental agencies." },
+        { icon: "git-branch-outline", text: "Plan coral larvae reseeding once water conditions stabilize." },
+      ],
+    };
   };
 
   return (
@@ -363,27 +415,11 @@ export default function BleachingAnalysis({ onClose }: Props) {
                     </View>
 
                     <View style={styles.analysisButtonsRow}>
-                      <TouchableOpacity style={styles.analysisAction}>
-                        <Text style={styles.analysisActionText}>Analysis</Text>
-                      </TouchableOpacity>
                       <TouchableOpacity
-                        style={[
-                          styles.analysisAction,
-                          styles.suggestionsAction,
-                        ]}
-                        onPress={() =>
-                          Alert.alert(
-                            "Suggestions",
-                            "Show restoration suggestions here.",
-                          )
-                        }
+                        style={styles.analysisAction}
+                        onPress={() => setShowSuggestions(true)}
                       >
-                        <Text
-                          style={[
-                            styles.analysisActionText,
-                            styles.suggestionsActionText,
-                          ]}
-                        >
+                        <Text style={styles.analysisActionText}>
                           Suggestions
                         </Text>
                       </TouchableOpacity>
@@ -393,6 +429,44 @@ export default function BleachingAnalysis({ onClose }: Props) {
 
                 <TouchableOpacity
                   onPress={() => setShowResult(false)}
+                  style={styles.modalClose}
+                >
+                  <Text style={styles.modalCloseText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* ── Suggestions modal ──────────────────────────────────── */}
+          <Modal visible={showSuggestions} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.suggestionsCard}>
+                {result && (() => {
+                  const s = getSuggestions(result.bleaching_percentage);
+                  return (
+                    <>
+                      <View style={[styles.suggestionsTitleRow, { borderBottomColor: s.color }]}>
+                        <Ionicons name={s.icon as any} size={22} color={s.color} />
+                        <Text style={[styles.suggestionsTitle, { color: s.color }]}>
+                          {s.title}
+                        </Text>
+                      </View>
+                      <Text style={styles.suggestionsPct}>
+                        Bleaching: {result.bleaching_percentage.toFixed(1)}%
+                      </Text>
+                      <ScrollView style={styles.suggestionsList} showsVerticalScrollIndicator={false}>
+                        {s.items.map((item, idx) => (
+                          <View key={idx} style={styles.suggestionItem}>
+                            <Ionicons name={item.icon as any} size={18} color={s.color} style={styles.suggestionItemIcon} />
+                            <Text style={styles.suggestionItemText}>{item.text}</Text>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    </>
+                  );
+                })()}
+                <TouchableOpacity
+                  onPress={() => setShowSuggestions(false)}
                   style={styles.modalClose}
                 >
                   <Text style={styles.modalCloseText}>Close</Text>
@@ -574,12 +648,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   analysisActionText: { color: "#fff", fontWeight: "800" },
-  suggestionsAction: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d6e4ff",
-  },
-  suggestionsActionText: { color: "#3b6fc1" },
 
   modalOverlay: {
     flex: 1,
@@ -613,4 +681,51 @@ const styles = StyleSheet.create({
   },
   dateNav: { paddingHorizontal: 18, paddingVertical: 8 },
   dateNavText: { fontSize: 22, color: "#517AAD" },
+
+  suggestionsCard: {
+    width: "92%",
+    maxHeight: "80%",
+    backgroundColor: "#f7fbff",
+    borderRadius: 16,
+    padding: 18,
+    alignItems: "center",
+  },
+  suggestionsTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderBottomWidth: 2,
+    paddingBottom: 10,
+    marginBottom: 6,
+    width: "100%",
+  },
+  suggestionsTitle: {
+    fontWeight: "800",
+    fontSize: 14,
+    flexShrink: 1,
+  },
+  suggestionsPct: {
+    color: "#6b7f96",
+    fontSize: 12,
+    marginBottom: 12,
+    alignSelf: "flex-start",
+  },
+  suggestionsList: {
+    width: "100%",
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+    gap: 10,
+  },
+  suggestionItemIcon: {
+    marginTop: 1,
+  },
+  suggestionItemText: {
+    flex: 1,
+    color: "#34495e",
+    fontSize: 13,
+    lineHeight: 19,
+  },
 });
