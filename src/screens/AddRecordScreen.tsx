@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '../components/AppText';
+import { useAuth } from '../context/AuthContext';
 
 interface AddRecordScreenProps {
     onBack: () => void;
@@ -12,6 +13,7 @@ interface AddRecordScreenProps {
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL
 
 const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
+    const { token, selectedLocation } = useAuth();
     const [date, setDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
@@ -69,6 +71,8 @@ const AddRecordScreen: React.FC<AddRecordScreenProps> = ({ onBack }) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'X-Location-ID': String(selectedLocation?.id ?? ''),
                 },
                 body: JSON.stringify(payload)
             });

@@ -11,6 +11,7 @@ import {
 import { Text, TextInput } from '../components/AppText';
 import { AnalyzedCoral, saveGrowthRecord } from "../api/growthApi";
 import { colors } from "../constants/colors";
+import { useAuth } from "../context/AuthContext";
 
 interface IdentificationResultsScreenProps {
   corals: AnalyzedCoral[];
@@ -31,6 +32,7 @@ export default function IdentificationResultsScreen({
   onTrackGrowth,
   onBackToUploads,
 }: IdentificationResultsScreenProps) {
+  const { token, selectedLocation } = useAuth();
   // Which temp coral_id is currently being saved
   const [savingId, setSavingId] = useState<string | null>(null);
   // User-entered IDs (keyed by temp coral_id from AI)
@@ -48,13 +50,17 @@ export default function IdentificationResultsScreen({
 
     setSavingId(coral.coral_id);
     try {
-      await saveGrowthRecord({
-        coral_id: userCoralId,
-        species: coral.species,
-        area_cm2: coral.area_cm2,
-        confidence: coral.confidence,
-        cnn_feed_image: coral.cnn_feed_image ?? imageUri,
-      });
+      await saveGrowthRecord(
+        {
+          coral_id: userCoralId,
+          species: coral.species,
+          area_cm2: coral.area_cm2,
+          confidence: coral.confidence,
+          cnn_feed_image: coral.cnn_feed_image ?? imageUri,
+        },
+        token!,
+        selectedLocation!.id,
+      );
       // Store the user-provided ID and mark as saved
       onCoralSaved(coral.coral_id, userCoralId);
     } catch (err: any) {

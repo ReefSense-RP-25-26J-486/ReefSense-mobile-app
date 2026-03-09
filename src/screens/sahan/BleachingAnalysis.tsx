@@ -14,6 +14,7 @@ import {
   View
 } from "react-native";
 import { Text, TextInput } from '../../components/AppText';
+import { useAuth } from '../../context/AuthContext';
 import { analyzeReef, type AnalyzeResult } from "../../services/api";
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function BleachingAnalysis({ onClose }: Props) {
+  const { token, selectedLocation } = useAuth();
   const [location, setLocation] = useState("Tropical Bay");
   const [date, setDate] = useState(new Date());
   const [showDateModal, setShowDateModal] = useState(false);
@@ -119,13 +121,17 @@ export default function BleachingAnalysis({ onClose }: Props) {
 
     try {
       setAnalyzing(true);
-      const data = await analyzeReef({
-        imageUri: image,
-        location: location.trim(),
-        date: date.toISOString(),
-        nursery,
-        coral_id: coralId.trim(),
-      });
+      const data = await analyzeReef(
+        {
+          imageUri: image,
+          location: location.trim(),
+          date: date.toISOString(),
+          nursery,
+          coral_id: coralId.trim(),
+        },
+        token!,
+        selectedLocation!.id,
+      );
       setResult(data);
       setShowResult(true);
     } catch (err: any) {

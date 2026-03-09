@@ -3,9 +3,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,12 +15,18 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, Polygon } from "react-native-maps";
+import { Circle, Ellipse, Line, Path, Rect, Svg } from "react-native-svg";
 import { Text, TextInput } from "../components/AppText";
+import { useAuth } from "../context/AuthContext";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Fixed map height — avoids the MapView flex-expansion bug on iOS/Android
 const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.44);
+
+// Bottom-sheet constants
+const TOP_SAFE = 60;
+const PARTIAL_OFFSET = MAP_HEIGHT - TOP_SAFE; // translateY when sheet is "collapsed" (visible top = MAP_HEIGHT)
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -63,26 +71,121 @@ const TYPE_META: Record<
   reef_ball: { label: "Reef Ball", icon: "planet", color: "#7E35AD" },
 };
 
+// Used only in map markers — safe text characters for Android bitmap capture
+const TYPE_CHAR: Record<string, string> = {
+  table: '━',
+  tree: '🌿',
+  drum: '◎',
+  reef_ball: '●',
+};
+
 const renderNurseryIcon = (type: string) => {
-  const color = TYPE_META[type]?.color ?? "#517AAD";
+  const ch = TYPE_CHAR[type] ?? '🪸';
+  return <Text style={{ fontSize: 15 }}>{ch}</Text>;
+};
 
+// SVG illustration shown in the SELECT_TYPE card grid
+const TypeCardIllustration = ({ type, size }: { type: string; size: number }) => {
+  const s = size;
+  const cx = s / 2;
+  const cy = s / 2;
+
+  if (type === 'table') {
+    // Table nursery: wide horizontal top + 4 legs + coral dots below
+    return (
+      <Svg width={s} height={s}>
+        {/* Table top */}
+        <Rect x={s * 0.1} y={cy - 4} width={s * 0.8} height={8} rx={3} fill="#fff" />
+        {/* Left leg */}
+        <Rect x={s * 0.15} y={cy + 4} width={5} height={s * 0.28} rx={2} fill="#fff" />
+        {/* Right leg */}
+        <Rect x={s * 0.8} y={cy + 4} width={5} height={s * 0.28} rx={2} fill="#fff" />
+        {/* Inner left leg */}
+        <Rect x={s * 0.35} y={cy + 4} width={5} height={s * 0.22} rx={2} fill="#fff" />
+        {/* Inner right leg */}
+        <Rect x={s * 0.6} y={cy + 4} width={5} height={s * 0.22} rx={2} fill="#fff" />
+        {/* Coral dots hanging below table */}
+        <Circle cx={s * 0.25} cy={cy - 10} r={4} fill="#fff" opacity={0.8} />
+        <Circle cx={s * 0.5} cy={cy - 14} r={5} fill="#fff" opacity={0.9} />
+        <Circle cx={s * 0.75} cy={cy - 10} r={4} fill="#fff" opacity={0.8} />
+        <Circle cx={s * 0.38} cy={cy - 8} r={3} fill="#fff" opacity={0.7} />
+        <Circle cx={s * 0.62} cy={cy - 8} r={3} fill="#fff" opacity={0.7} />
+      </Svg>
+    );
+  }
+
+  if (type === 'tree') {
+    // Tree nursery: vertical pole + 2 horizontal arms + coral ovals at ends
+    return (
+      <Svg width={s} height={s}>
+        {/* Vertical pole */}
+        <Rect x={cx - 3} y={s * 0.18} width={6} height={s * 0.64} rx={3} fill="#fff" />
+        {/* Top arm */}
+        <Rect x={s * 0.2} y={s * 0.28} width={s * 0.6} height={5} rx={2} fill="#fff" />
+        {/* Bottom arm */}
+        <Rect x={s * 0.25} y={s * 0.5} width={s * 0.5} height={5} rx={2} fill="#fff" />
+        {/* Coral ovals at top arm ends */}
+        <Ellipse cx={s * 0.2} cy={s * 0.3} rx={6} ry={8} fill="#fff" opacity={0.85} />
+        <Ellipse cx={s * 0.8} cy={s * 0.3} rx={6} ry={8} fill="#fff" opacity={0.85} />
+        {/* Coral ovals at bottom arm ends */}
+        <Ellipse cx={s * 0.25} cy={s * 0.52} rx={5} ry={7} fill="#fff" opacity={0.75} />
+        <Ellipse cx={s * 0.75} cy={s * 0.52} rx={5} ry={7} fill="#fff" opacity={0.75} />
+      </Svg>
+    );
+  }
+
+  if (type === 'drum') {
+    // Drum nursery: rounded rectangle body + 3 horizontal band lines
+    return (
+      <Svg width={s} height={s}>
+        {/* Drum body */}
+        <Rect x={s * 0.2} y={s * 0.15} width={s * 0.6} height={s * 0.7} rx={10} fill="#fff" opacity={0.25} />
+        <Rect x={s * 0.2} y={s * 0.15} width={s * 0.6} height={s * 0.7} rx={10} stroke="#fff" strokeWidth={3} fill="transparent" />
+        {/* Band 1 */}
+        <Line x1={s * 0.2} y1={s * 0.35} x2={s * 0.8} y2={s * 0.35} stroke="#fff" strokeWidth={3} />
+        {/* Band 2 */}
+        <Line x1={s * 0.2} y1={s * 0.52} x2={s * 0.8} y2={s * 0.52} stroke="#fff" strokeWidth={3} />
+        {/* Band 3 */}
+        <Line x1={s * 0.2} y1={s * 0.68} x2={s * 0.8} y2={s * 0.68} stroke="#fff" strokeWidth={3} />
+      </Svg>
+    );
+  }
+
+  if (type === 'reef_ball') {
+    // Reef ball: dome half-circle + flat base + 3 holes
+    const domeR = s * 0.34;
+    const basY = cy + 4;
+    return (
+      <Svg width={s} height={s}>
+        {/* Dome using path */}
+        <Path
+          d={`M ${cx - domeR} ${basY} A ${domeR} ${domeR} 0 0 1 ${cx + domeR} ${basY} Z`}
+          fill="#fff"
+          opacity={0.25}
+        />
+        <Path
+          d={`M ${cx - domeR} ${basY} A ${domeR} ${domeR} 0 0 1 ${cx + domeR} ${basY}`}
+          stroke="#fff"
+          strokeWidth={3}
+          fill="transparent"
+        />
+        {/* Flat base */}
+        <Rect x={cx - domeR} y={basY} width={domeR * 2} height={6} rx={2} fill="#fff" opacity={0.6} />
+        {/* Hole left */}
+        <Circle cx={cx - domeR * 0.45} cy={basY - domeR * 0.42} r={5} fill="#fff" opacity={0.9} />
+        {/* Hole center */}
+        <Circle cx={cx} cy={basY - domeR * 0.65} r={5} fill="#fff" opacity={0.9} />
+        {/* Hole right */}
+        <Circle cx={cx + domeR * 0.45} cy={basY - domeR * 0.42} r={5} fill="#fff" opacity={0.9} />
+      </Svg>
+    );
+  }
+
+  // Fallback
   return (
-    <View style={{ alignItems: "center" }}>
-      {/* Coral */}
-      <Text style={{ fontSize: 16 }}>🪸</Text>
-
-      {/* Nursery frame */}
-      <View
-        style={{
-          width: 18,
-          height: 10,
-          borderWidth: 2,
-          borderColor: color,
-          borderRadius: 2,
-          marginTop: 2,
-        }}
-      />
-    </View>
+    <Svg width={s} height={s}>
+      <Circle cx={cx} cy={cy} r={s * 0.35} fill="#fff" opacity={0.6} />
+    </Svg>
   );
 };
 
@@ -140,7 +243,48 @@ interface NurseryTypeInfo {
 }
 
 export default function NurseryPlanningScreen() {
+  const { token, selectedLocation: authLocation } = useAuth();
   const mapRef = useRef<MapView>(null);
+
+  // ── Bottom-sheet animation ────────────────────────────────────────────────────
+  const sheetAnim = useRef(new Animated.Value(PARTIAL_OFFSET)).current;
+  const sheetOffset = useRef(PARTIAL_OFFSET); // current resting offset (0 = expanded, PARTIAL_OFFSET = collapsed)
+
+  const snapSheet = (toValue: number) => {
+    sheetOffset.current = toValue;
+    Animated.spring(sheetAnim, {
+      toValue,
+      useNativeDriver: true,
+      bounciness: 4,
+      speed: 14,
+    }).start();
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, gs) => Math.abs(gs.dy) > 8,
+      onPanResponderGrant: () => {
+        // Stop any in-flight animation and read the current animated value
+        sheetAnim.stopAnimation((val) => {
+          sheetOffset.current = val;
+          sheetAnim.setValue(val);
+        });
+      },
+      onPanResponderMove: (_e, gs) => {
+        const next = Math.max(0, Math.min(PARTIAL_OFFSET, sheetOffset.current + gs.dy));
+        sheetAnim.setValue(next);
+      },
+      onPanResponderRelease: (_e, gs) => {
+        if (gs.dy < -60 || gs.vy < -0.4) {
+          snapSheet(0);
+        } else if (gs.dy > 60 || gs.vy > 0.4) {
+          snapSheet(PARTIAL_OFFSET);
+        } else {
+          snapSheet(sheetOffset.current);
+        }
+      },
+    }),
+  ).current;
 
   const [view, setView] = useState<ScreenView>("MAIN");
   const [nurseries, setNurseries] = useState<Nursery[]>([]);
@@ -195,14 +339,20 @@ export default function NurseryPlanningScreen() {
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
+  const gisHeaders = (): Record<string, string> => ({
+    Authorization: `Bearer ${token}`,
+    'X-Location-ID': String(authLocation?.id ?? ''),
+  });
+
   const fetchAll = useCallback(async () => {
     try {
+      const hdrs = gisHeaders();
       const [nursRes, avRes, unavRes, typesRes, zoneRes] = await Promise.all([
-        fetch(`${BASE_URL}/api/gis/nurseries`),
-        fetch(`${BASE_URL}/api/gis/candidate-points?available=true&limit=120`),
-        fetch(`${BASE_URL}/api/gis/candidate-points?available=false&limit=80`),
-        fetch(`${BASE_URL}/api/gis/nursery-types`),
-        fetch(`${BASE_URL}/api/gis/restoration-zone`),
+        fetch(`${BASE_URL}/api/gis/nurseries`, { headers: hdrs }),
+        fetch(`${BASE_URL}/api/gis/candidate-points?available=true&limit=120`, { headers: hdrs }),
+        fetch(`${BASE_URL}/api/gis/candidate-points?available=false&limit=80`, { headers: hdrs }),
+        fetch(`${BASE_URL}/api/gis/nursery-types`, { headers: hdrs }),
+        fetch(`${BASE_URL}/api/gis/restoration-zone`, { headers: hdrs }),
       ]);
       if (nursRes.ok) {
         const d = await nursRes.json();
@@ -231,7 +381,8 @@ export default function NurseryPlanningScreen() {
     } finally {
       setInitialLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, authLocation]);
 
   useEffect(() => {
     fetchAll();
@@ -254,6 +405,27 @@ export default function NurseryPlanningScreen() {
       clearTimeout(t2);
     };
   }, []);
+
+  // Collapse sheet whenever the active view changes
+  useEffect(() => {
+    snapSheet(PARTIAL_OFFSET);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  // Pan map to the currently selected auth location
+  useEffect(() => {
+    if (!authLocation) return;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: (authLocation as any).center_lat,
+        longitude: (authLocation as any).center_lon,
+        latitudeDelta: 0.025,
+        longitudeDelta: 0.025,
+      },
+      600,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(authLocation as any)?.id]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -330,7 +502,7 @@ export default function NurseryPlanningScreen() {
 
       const res = await fetch(`${BASE_URL}/api/gis/top-locations-by-nursery`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...gisHeaders() },
         body: JSON.stringify(body),
       });
       if (res.ok) {
@@ -390,7 +562,7 @@ export default function NurseryPlanningScreen() {
 
       const res = await fetch(`${BASE_URL}/api/gis/nurseries`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...gisHeaders() },
         body: JSON.stringify(body),
       });
       if (res.ok) {
@@ -430,7 +602,7 @@ export default function NurseryPlanningScreen() {
         `${BASE_URL}/api/gis/nurseries/${selectedNursery.id}`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...gisHeaders() },
           body: JSON.stringify(body),
         },
       );
@@ -662,7 +834,7 @@ export default function NurseryPlanningScreen() {
                       { backgroundColor: meta.color },
                     ]}
                   >
-                    {renderNurseryIcon(key)}
+                    <TypeCardIllustration type={key} size={48} />
                   </View>
                   <Text style={styles.typeCardLabel}>{meta.label}</Text>
                 </TouchableOpacity>
@@ -1374,14 +1546,19 @@ export default function NurseryPlanningScreen() {
 
   return (
     <View style={styles.container}>
-      {needsMap ? (
-        <>
-          {renderMap()}
+      {needsMap && renderMap()}
+
+      {needsMap && (
+        <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetAnim }] }]}>
+          <View style={styles.dragArea} {...panResponder.panHandlers}>
+            <View style={styles.dragHandle} />
+          </View>
           {renderBottomPanel()}
-        </>
-      ) : (
-        renderFullScreenView()
+        </Animated.View>
       )}
+
+      {!needsMap && renderFullScreenView()}
+
       {renderSpeciesModal(false)}
       {renderSpeciesModal(true)}
     </View>
@@ -1416,8 +1593,7 @@ const styles = StyleSheet.create({
 
   // ── Map ──
   mapContainer: {
-    height: MAP_HEIGHT,
-    width: "100%",
+    ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
   },
 
@@ -1499,20 +1675,40 @@ const styles = StyleSheet.create({
   },
   locationPinTipActive: { borderTopColor: PRIMARY },
 
-  // ── Bottom panel (map views) ──
-  panel: {
-    flex: 1,
+  // ── Swipeable bottom sheet ──
+  sheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: SCREEN_HEIGHT - TOP_SAFE,
     backgroundColor: "#fff",
     borderTopLeftRadius: PANEL_RADIUS,
     borderTopRightRadius: PANEL_RADIUS,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  dragArea: {
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#CBD5E1",
+    borderRadius: 2,
+  },
+
+  // ── Bottom panel (map views) ──
+  panel: {
+    flex: 1,
+    paddingHorizontal: 22,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
   panelTitle: {
     fontSize: 18,

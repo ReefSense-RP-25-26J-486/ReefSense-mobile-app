@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Text } from '../components/AppText';
+import { useAuth } from '../context/AuthContext';
 
 interface TempProps {
     onGoToForecast: () => void;
@@ -11,7 +12,11 @@ interface TempProps {
 
 const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL_TEMP
 
+const PORT_CITY_LAT = 6.9297;
+const PORT_CITY_LON = 79.8476;
+
 export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoToRecords }: TempProps) {
+    const { selectedLocation } = useAuth();
     const [apiData, setApiData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const getTimeBlock = () => {
@@ -36,17 +41,32 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
         }
     };
 
+    const isPortCity =
+        !selectedLocation ||
+        (Math.abs((selectedLocation as any).center_lat - PORT_CITY_LAT) < 0.08 &&
+         Math.abs((selectedLocation as any).center_lon - PORT_CITY_LON) < 0.08);
+
     useEffect(() => {
+        if (!isPortCity) { setLoading(false); setApiData(null); return; }
         setLoading(true);
         fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
             .then((json) => { setApiData(json); setLoading(false); })
             .catch((err) => { console.error("AI Fetch Error:", err); setLoading(false); });
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPortCity]);
 
-    const mainTemp = apiData?.header?.main_temp ? `${Math.round(parseFloat(apiData.header.main_temp))}°C` : "--°C";
-    const readingTime = apiData?.header?.reading_time || "Loading...";
-    const depthList = apiData?.window_1 || [];
+    const mainTemp = (isPortCity && apiData?.header?.main_temp)
+        ? `${Math.round(parseFloat(apiData.header.main_temp))}°C`
+        : '—°C';
+    const readingTime = (isPortCity && apiData?.header?.reading_time) ? apiData.header.reading_time : '—';
+    const depthList = isPortCity
+        ? (apiData?.window_1 || [])
+        : [
+            { depth_range: '0 – 2 m',  current_temp: '—' },
+            { depth_range: '3 – 6 m',  current_temp: '—' },
+            { depth_range: '7 – 10 m', current_temp: '—' },
+          ];
 
     if (loading) {
         return (

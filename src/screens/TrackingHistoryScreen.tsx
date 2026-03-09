@@ -10,6 +10,7 @@ import {
 import { Text, TextInput } from '../components/AppText';
 import { CoralSummary, deleteCoral, getAllCoralSummaries } from "../api/growthApi";
 import { colors } from "../constants/colors";
+import { useAuth } from "../context/AuthContext";
 
 interface TrackingHistoryScreenProps {
   onViewDetails: (coralId: string) => void;
@@ -35,6 +36,7 @@ export default function TrackingHistoryScreen({
   onViewDetails,
   onBackToUploads,
 }: TrackingHistoryScreenProps) {
+  const { token, selectedLocation } = useAuth();
   const [corals, setCorals] = useState<CoralSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export default function TrackingHistoryScreen({
           onPress: async () => {
             setDeletingId(coralId);
             try {
-              await deleteCoral(coralId);
+              await deleteCoral(coralId, token!, selectedLocation!.id);
               setCorals((prev) => prev.filter((c) => c.coral_id !== coralId));
             } catch (err: any) {
               Alert.alert("Delete Failed", err.message);
@@ -70,7 +72,7 @@ export default function TrackingHistoryScreen({
     setLoading(true);
     setError(null);
     try {
-      const data = await getAllCoralSummaries();
+      const data = await getAllCoralSummaries(token!, selectedLocation!.id);
       const sorted = [...data].sort(
         (a, b) =>
           new Date(b.last_recorded).getTime() -
