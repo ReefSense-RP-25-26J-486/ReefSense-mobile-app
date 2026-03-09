@@ -1,8 +1,10 @@
+import { router } from "expo-router";
 import React, { useState } from "react";
 import { SafeAreaView, StyleSheet, View } from "react-native";
 import { AnalyzedCoral } from "../src/api/growthApi";
 import BottomTab from "../src/components/BottomTab";
 import Header from "../src/components/Header";
+import { useAuth } from "../src/context/AuthContext";
 import AddRecordScreen from "../src/screens/AddRecordScreen";
 import ForecastScreen from "../src/screens/ForecastScreen";
 import GrowthDetailsScreen from "../src/screens/GrowthDetailsScreen";
@@ -21,6 +23,7 @@ import BleachingHome from "../src/screens/sahan/BleachingHome";
 import { colors } from "../src/constants/colors";
 
 export default function Home() {
+  const { userLocations, selectedLocation, setSelectedLocation } = useAuth();
   const [activeIndex, setActiveIndex] = useState(0);
   const [currentView, setCurrentView] = useState("LIST");
   const [analyzeResults, setAnalyzeResults] = useState<AnalyzedCoral[]>([]);
@@ -146,7 +149,12 @@ export default function Home() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header />
+      <Header
+        locations={userLocations}
+        selectedLocation={selectedLocation}
+        onLocationChange={setSelectedLocation}
+        onProfilePress={() => router.push('/profile')}
+      />
       <View style={styles.content}>{renderContent()}</View>
       <BottomTab
         activeIndex={activeIndex}

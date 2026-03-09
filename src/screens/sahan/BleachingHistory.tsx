@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { Text } from '../../components/AppText';
+import { useAuth } from '../../context/AuthContext';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
 
 const colors = {
@@ -71,6 +72,7 @@ const fmtDate = (iso: string) =>
   });
 
 export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
+  const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +81,11 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
   );
 
   const load = useCallback(async () => {
+    if (!token || !selectedLocation) return;
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchHistory();
+      const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
     } catch (err: any) {
       setError(err?.message ?? "Failed to load history.");

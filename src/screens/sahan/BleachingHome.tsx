@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { Text } from '../../components/AppText';
+import { useAuth } from '../../context/AuthContext';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
 
 interface Props {
@@ -55,13 +56,15 @@ export default function BleachingDetectionScreen({
   onBack,
   onViewHistory,
 }: Props) {
+  const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (!token || !selectedLocation) return;
     try {
       setLoading(true);
-      const data = await fetchHistory();
+      const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
     } catch {
       setRecords([]);
