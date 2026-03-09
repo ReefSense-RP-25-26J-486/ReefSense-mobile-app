@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '../components/AppText';
 import { LineChart } from "react-native-chart-kit";
 import alertIcon from '../assets/icons/alert_icon.png';
 import recommendationIcon from '../assets/icons/recommendation_icon.png';

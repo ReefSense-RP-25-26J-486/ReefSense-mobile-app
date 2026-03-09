@@ -1,29 +1,28 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from './AppText';
 
 export default function Header() {
     return (
         <View style={styles.headerWrapper}>
-            <SafeAreaView>
-                <View style={styles.contentContainer}>
+            <View style={styles.contentContainer}>
 
-                    {/* Location Selector Pill */}
-                    <TouchableOpacity style={styles.locationSelector}>
-                        <View style={styles.locationRow}>
-                            <Ionicons name="location-sharp" size={18} color="black" />
-                            <Text style={styles.locationText} numberOfLines={1}>Port City, Colombo</Text>
-                            <Ionicons name="chevron-down" size={20} color="black" />
-                        </View>
-                    </TouchableOpacity>
+                {/* Location Selector Pill */}
+                <TouchableOpacity style={styles.locationSelector}>
+                    <View style={styles.locationRow}>
+                        <Ionicons name="location-sharp" size={18} color="black" />
+                        <Text style={styles.locationText} numberOfLines={1}>Port City, Colombo</Text>
+                        <Ionicons name="chevron-down" size={20} color="black" />
+                    </View>
+                </TouchableOpacity>
 
-                    {/* Profile Icon Box */}
-                    <TouchableOpacity style={styles.profileBox}>
-                        <Ionicons name="person" size={24} color="white" />
-                    </TouchableOpacity>
+                {/* Profile Icon Box */}
+                <TouchableOpacity style={styles.profileBox}>
+                    <Ionicons name="person" size={24} color="white" />
+                </TouchableOpacity>
 
-                </View>
-            </SafeAreaView>
+            </View>
         </View>
     );
 }
@@ -33,14 +32,15 @@ const styles = StyleSheet.create({
         backgroundColor: "#EEF4FF",
         borderBottomLeftRadius: 30,
         borderBottomRightRadius: 30,
-        paddingTop: 10,
-        paddingBottom: 20,
+        paddingTop: 18,
+        marginTop: 5,
+        paddingBottom:18,
     },
     contentContainer: {
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: 20,
-        marginTop: 10,
+        marginTop: 20,
     },
     locationSelector: {
         backgroundColor: "#FFFFFF",
@@ -50,7 +50,6 @@ const styles = StyleSheet.create({
         marginRight: 12,
         justifyContent: "center",
         paddingHorizontal: 15,
-        // Soft shadow
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.03,

@@ -10,11 +10,10 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View
 } from "react-native";
+import { Text, TextInput } from '../../components/AppText';
 import { analyzeReef, type AnalyzeResult } from "../../services/api";
 
 interface Props {

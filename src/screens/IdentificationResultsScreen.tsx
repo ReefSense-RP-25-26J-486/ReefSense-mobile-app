@@ -5,11 +5,10 @@ import {
     Image,
     ScrollView,
     StyleSheet,
-    Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { Text, TextInput } from '../components/AppText';
 import { AnalyzedCoral, saveGrowthRecord } from "../api/growthApi";
 import { colors } from "../constants/colors";
 

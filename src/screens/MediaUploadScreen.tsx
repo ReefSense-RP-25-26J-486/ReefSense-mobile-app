@@ -10,10 +10,10 @@ import {
     Alert,
     ScrollView,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { Text } from '../components/AppText';
 import {
     AnalyzeResult,
     getAllCoralSummaries,
@@ -31,10 +31,12 @@ export default function MediaUploadScreen({
   onHistory,
 }: MediaUploadScreenProps) {
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [totalObservations, setTotalObservations] = useState<number | null>(null);
   const [lastSpecies, setLastSpecies] = useState<string | null>(null);
 
   useEffect(() => {
+    setDataLoading(true);
     getAllCoralSummaries()
       .then((corals) => {
         const total = corals.reduce((sum, c) => sum + c.record_count, 0);
@@ -48,7 +50,8 @@ export default function MediaUploadScreen({
           setLastSpecies(latest.species);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setDataLoading(false));
   }, []);
 
   const pickAndAnalyze = async () => {
@@ -86,6 +89,16 @@ export default function MediaUploadScreen({
       setLoading(false);
     }
   };
+
+  if (dataLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingTitle}>Loading Data</Text>
+        <Text style={styles.loadingSubtitle}>Fetching coral observation history...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.mainContainer} showsVerticalScrollIndicator={false}>
@@ -142,6 +155,15 @@ export default function MediaUploadScreen({
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF",
+  },
+  loadingTitle: {
+    marginTop: 16, fontSize: 16, fontWeight: "600", color: "#333",
+  },
+  loadingSubtitle: {
+    marginTop: 6, fontSize: 13, color: "#aaa",
+  },
   mainContainer: { flex: 1, backgroundColor: "#FFFFFF" },
   container: { flex: 1, alignItems: "center", paddingTop: 20 },
   sectionSubtitle: {

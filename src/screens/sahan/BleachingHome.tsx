@@ -9,10 +9,10 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text } from '../../components/AppText';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
 
 interface Props {
@@ -111,6 +111,16 @@ export default function BleachingDetectionScreen({
     ? `${new Date(records[records.length - 1].date).toLocaleDateString("en-US", { month: "short", year: "numeric" })} — ${new Date(records[0].date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
     : null;
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingTitle}>Loading Analysis</Text>
+        <Text style={styles.loadingSubtitle}>Fetching bleaching detection history...</Text>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -145,14 +155,6 @@ export default function BleachingDetectionScreen({
           </View>
 
           <Text style={styles.title}>Bleaching Detection</Text>
-
-          {/* ── Loading state ───────────────────────────────────────── */}
-          {loading && (
-            <View style={styles.centred}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.mutedText}>Loading latest analysis…</Text>
-            </View>
-          )}
 
           {/* ── Empty state ─────────────────────────────────────────── */}
           {!loading && records.length === 0 && (
@@ -494,6 +496,11 @@ export default function BleachingDetectionScreen({
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg,
+  },
+  loadingTitle: { marginTop: 16, fontSize: 16, fontWeight: "600", color: "#333" },
+  loadingSubtitle: { marginTop: 6, fontSize: 13, color: "#aaa" },
   safe:      { flex: 1, backgroundColor: colors.bg },
   container: { flex: 1, padding: 18, backgroundColor: colors.bg },
 
