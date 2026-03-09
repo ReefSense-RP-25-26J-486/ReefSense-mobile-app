@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from '../components/AppText';
 
 interface TempProps {
     onGoToForecast: () => void;
@@ -12,6 +13,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL_TEMP
 
 export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoToRecords }: TempProps) {
     const [apiData, setApiData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
     const getTimeBlock = () => {
         const hour = new Date().getHours();
         if (hour >= 0 && hour < 6) return "00:00 AM - 06:00 AM";
@@ -35,15 +37,26 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
     };
 
     useEffect(() => {
+        setLoading(true);
         fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
-            .then((json) => setApiData(json))
-            .catch((err) => console.error("AI Fetch Error:", err));
+            .then((json) => { setApiData(json); setLoading(false); })
+            .catch((err) => { console.error("AI Fetch Error:", err); setLoading(false); });
     }, []);
 
     const mainTemp = apiData?.header?.main_temp ? `${Math.round(parseFloat(apiData.header.main_temp))}°C` : "--°C";
     const readingTime = apiData?.header?.reading_time || "Loading...";
     const depthList = apiData?.window_1 || [];
+
+    if (loading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4A78D0" />
+                <Text style={styles.loadingTitle}>Loading Temperature Data</Text>
+                <Text style={styles.loadingSubtitle}>Fetching live coral site readings...</Text>
+            </View>
+        );
+    }
 
     return (
         <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
@@ -112,6 +125,15 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
 }
 
 const styles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF',
+    },
+    loadingTitle: {
+        marginTop: 16, fontSize: 16, fontWeight: '600', color: '#3b3b3b',
+    },
+    loadingSubtitle: {
+        marginTop: 6, fontSize: 13, color: '#708090',
+    },
     screen: {
         flex: 1,
         backgroundColor: '#FFFFFF',

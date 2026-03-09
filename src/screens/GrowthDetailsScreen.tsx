@@ -5,10 +5,10 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text } from '../components/AppText';
 import { LineChart } from "react-native-gifted-charts";
 import {
   CoralRecord,

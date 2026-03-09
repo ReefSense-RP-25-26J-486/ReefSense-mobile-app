@@ -160,6 +160,6 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingTop: 40 },
+  container: { flex: 1, backgroundColor: colors.background},
   content: { flex: 1, paddingHorizontal: 16 },
 });

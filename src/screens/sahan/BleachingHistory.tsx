@@ -9,10 +9,10 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text } from '../../components/AppText';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
 
 const colors = {

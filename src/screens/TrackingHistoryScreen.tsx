@@ -4,11 +4,10 @@ import {
     Alert,
     ScrollView,
     StyleSheet,
-    Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { Text, TextInput } from '../components/AppText';
 import { CoralSummary, deleteCoral, getAllCoralSummaries } from "../api/growthApi";
 import { colors } from "../constants/colors";
 
