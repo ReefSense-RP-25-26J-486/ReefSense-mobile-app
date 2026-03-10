@@ -10,16 +10,17 @@ import {
     Alert,
     ScrollView,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { Text } from '../components/AppText';
 import {
     AnalyzeResult,
     getAllCoralSummaries,
     analyzeImage,
 } from "../api/growthApi";
 import { colors } from "../constants/colors";
+import { useAuth } from "../context/AuthContext";
 
 interface MediaUploadScreenProps {
   onBrowse: (result: AnalyzeResult, imageUri: string) => void;
@@ -30,12 +31,16 @@ export default function MediaUploadScreen({
   onBrowse,
   onHistory,
 }: MediaUploadScreenProps) {
+  const { token, selectedLocation } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [totalObservations, setTotalObservations] = useState<number | null>(null);
   const [lastSpecies, setLastSpecies] = useState<string | null>(null);
 
   useEffect(() => {
-    getAllCoralSummaries()
+    if (!token || !selectedLocation) return;
+    setDataLoading(true);
+    getAllCoralSummaries(token, selectedLocation.id)
       .then((corals) => {
         const total = corals.reduce((sum, c) => sum + c.record_count, 0);
         setTotalObservations(total);
@@ -48,7 +53,8 @@ export default function MediaUploadScreen({
           setLastSpecies(latest.species);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setDataLoading(false));
   }, []);
 
   const pickAndAnalyze = async () => {
@@ -69,7 +75,7 @@ export default function MediaUploadScreen({
     const imageUri = result.assets[0].uri;
     setLoading(true);
     try {
-      const analyzeResult = await analyzeImage(imageUri);
+      const analyzeResult = await analyzeImage(imageUri, token!, selectedLocation!.id);
 
       if (analyzeResult.corals.length === 0) {
         Alert.alert(
@@ -86,6 +92,16 @@ export default function MediaUploadScreen({
       setLoading(false);
     }
   };
+
+  if (dataLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingTitle}>Loading Data</Text>
+        <Text style={styles.loadingSubtitle}>Fetching coral observation history...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.mainContainer} showsVerticalScrollIndicator={false}>
@@ -142,6 +158,15 @@ export default function MediaUploadScreen({
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF",
+  },
+  loadingTitle: {
+    marginTop: 16, fontSize: 16, fontWeight: "600", color: "#333",
+  },
+  loadingSubtitle: {
+    marginTop: 6, fontSize: 13, color: "#aaa",
+  },
   mainContainer: { flex: 1, backgroundColor: "#FFFFFF" },
   container: { flex: 1, alignItems: "center", paddingTop: 20 },
   sectionSubtitle: {

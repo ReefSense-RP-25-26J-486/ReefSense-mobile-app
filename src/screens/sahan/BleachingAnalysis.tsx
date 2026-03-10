@@ -1,36 +1,70 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Text, TextInput } from "../../components/AppText";
+import { useAuth } from "../../context/AuthContext";
 import { analyzeReef, type AnalyzeResult } from "../../services/api";
+
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS ?? "";
+
+interface NurseryOption {
+  id: number;
+  name: string | null;
+  type: string;
+}
 
 interface Props {
   onClose: () => void;
 }
 
 export default function BleachingAnalysis({ onClose }: Props) {
+  const { token, selectedLocation } = useAuth();
   const [location, setLocation] = useState("Tropical Bay");
   const [date, setDate] = useState(new Date());
   const [showDateModal, setShowDateModal] = useState(false);
-  const [nurseryOptions] = useState(["NB-001", "NB-002", "NB-003"]);
-  const [nursery, setNursery] = useState(nurseryOptions[0]);
+  const [nurseryOptions, setNurseryOptions] = useState<NurseryOption[]>([]);
+  const [nursery, setNursery] = useState<NurseryOption | null>(null);
+  const [loadingNurseries, setLoadingNurseries] = useState(false);
   const [showNurseryModal, setShowNurseryModal] = useState(false);
   const [coralId, setCoralId] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
+
+  // Load nurseries from API
+  useEffect(() => {
+    if (!token || !selectedLocation) return;
+    setLoadingNurseries(true);
+    fetch(`${BASE_URL}/api/gis/nurseries`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Location-ID": String(selectedLocation.id),
+      },
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const list: NurseryOption[] = (d.nurseries ?? []).map((n: any) => ({
+          id: n.id,
+          name: n.name,
+          type: n.type,
+        }));
+        setNurseryOptions(list);
+        if (list.length > 0) setNursery(list[0]);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingNurseries(false));
+  }, [token, selectedLocation]);
 
   // Analysis state
   const [analyzing, setAnalyzing] = useState(false);
@@ -120,13 +154,19 @@ export default function BleachingAnalysis({ onClose }: Props) {
 
     try {
       setAnalyzing(true);
-      const data = await analyzeReef({
-        imageUri: image,
-        location: location.trim(),
-        date: date.toISOString(),
-        nursery,
-        coral_id: coralId.trim(),
-      });
+      const data = await analyzeReef(
+        {
+          imageUri: image,
+          location: location.trim(),
+          date: date.toISOString(),
+          nursery: nursery
+            ? `${nursery.name ?? nursery.type} #${nursery.id}`
+            : "",
+          coral_id: coralId.trim(),
+        },
+        token!,
+        selectedLocation!.id,
+      );
       setResult(data);
       setShowResult(true);
     } catch (err: any) {
@@ -151,18 +191,35 @@ export default function BleachingAnalysis({ onClose }: Props) {
     text: string;
   }
 
-  const getSuggestions = (pct: number): { title: string; color: string; icon: string; items: Suggestion[] } => {
+  const getSuggestions = (
+    pct: number,
+  ): { title: string; color: string; icon: string; items: Suggestion[] } => {
     if (pct < 20) {
       return {
         title: "Low Severity — Preventive Care",
         color: "#2ECC71",
         icon: "checkmark-circle-outline",
         items: [
-          { icon: "thermometer-outline", text: "Monitor water temperature weekly to detect early heat stress." },
-          { icon: "water-outline", text: "Maintain optimal water quality: pH 8.1–8.3, salinity 33–37 ppt." },
-          { icon: "eye-outline", text: "Document coral health with photos to track any progression." },
-          { icon: "leaf-outline", text: "Reduce local stressors such as runoff, sedimentation, and pollution." },
-          { icon: "sunny-outline", text: "Ensure adequate water flow and sunlight reach all coral surfaces." },
+          {
+            icon: "thermometer-outline",
+            text: "Monitor water temperature weekly to detect early heat stress.",
+          },
+          {
+            icon: "water-outline",
+            text: "Maintain optimal water quality: pH 8.1–8.3, salinity 33–37 ppt.",
+          },
+          {
+            icon: "eye-outline",
+            text: "Document coral health with photos to track any progression.",
+          },
+          {
+            icon: "leaf-outline",
+            text: "Reduce local stressors such as runoff, sedimentation, and pollution.",
+          },
+          {
+            icon: "sunny-outline",
+            text: "Ensure adequate water flow and sunlight reach all coral surfaces.",
+          },
         ],
       };
     }
@@ -172,12 +229,30 @@ export default function BleachingAnalysis({ onClose }: Props) {
         color: "#F39C12",
         icon: "warning-outline",
         items: [
-          { icon: "pulse-outline", text: "Increase monitoring frequency to daily observations." },
-          { icon: "swap-horizontal-outline", text: "Consider relocating vulnerable coral fragments to cooler, shaded areas." },
-          { icon: "ban-outline", text: "Restrict anchoring and physical disturbances near affected zones." },
-          { icon: "cut-outline", text: "Control algae overgrowth to reduce competition with stressed corals." },
-          { icon: "megaphone-outline", text: "Notify local marine conservation authorities of the bleaching event." },
-          { icon: "umbrella-outline", text: "Deploy temporary shading structures if heat stress is the primary cause." },
+          {
+            icon: "pulse-outline",
+            text: "Increase monitoring frequency to daily observations.",
+          },
+          {
+            icon: "swap-horizontal-outline",
+            text: "Consider relocating vulnerable coral fragments to cooler, shaded areas.",
+          },
+          {
+            icon: "ban-outline",
+            text: "Restrict anchoring and physical disturbances near affected zones.",
+          },
+          {
+            icon: "cut-outline",
+            text: "Control algae overgrowth to reduce competition with stressed corals.",
+          },
+          {
+            icon: "megaphone-outline",
+            text: "Notify local marine conservation authorities of the bleaching event.",
+          },
+          {
+            icon: "umbrella-outline",
+            text: "Deploy temporary shading structures if heat stress is the primary cause.",
+          },
         ],
       };
     }
@@ -186,13 +261,34 @@ export default function BleachingAnalysis({ onClose }: Props) {
       color: "#C0392B",
       icon: "alert-circle-outline",
       items: [
-        { icon: "medkit-outline", text: "Initiate emergency coral rescue operations immediately." },
-        { icon: "construct-outline", text: "Collect and transport coral fragments to nursery tanks for recovery." },
-        { icon: "call-outline", text: "Contact reef restoration specialists and marine biologists urgently." },
-        { icon: "shield-outline", text: "Restrict all human access to the affected reef area." },
-        { icon: "flask-outline", text: "Investigate and eliminate pollution and runoff sources nearby." },
-        { icon: "document-text-outline", text: "Submit a formal incident report to environmental agencies." },
-        { icon: "git-branch-outline", text: "Plan coral larvae reseeding once water conditions stabilize." },
+        {
+          icon: "medkit-outline",
+          text: "Initiate emergency coral rescue operations immediately.",
+        },
+        {
+          icon: "construct-outline",
+          text: "Collect and transport coral fragments to nursery tanks for recovery.",
+        },
+        {
+          icon: "call-outline",
+          text: "Contact reef restoration specialists and marine biologists urgently.",
+        },
+        {
+          icon: "shield-outline",
+          text: "Restrict all human access to the affected reef area.",
+        },
+        {
+          icon: "flask-outline",
+          text: "Investigate and eliminate pollution and runoff sources nearby.",
+        },
+        {
+          icon: "document-text-outline",
+          text: "Submit a formal incident report to environmental agencies.",
+        },
+        {
+          icon: "git-branch-outline",
+          text: "Plan coral larvae reseeding once water conditions stabilize.",
+        },
       ],
     };
   };
@@ -257,12 +353,24 @@ export default function BleachingAnalysis({ onClose }: Props) {
           </View>
 
           <View style={styles.formRow}>
-            <Text style={styles.fieldLabel}>Nursery ID</Text>
+            <Text style={styles.fieldLabel}>Nursery</Text>
             <TouchableOpacity
-              onPress={() => setShowNurseryModal(true)}
+              onPress={() =>
+                nurseryOptions.length > 0 && setShowNurseryModal(true)
+              }
               style={styles.fieldBoxTouchable}
             >
-              <Text style={styles.fieldValue}>{nursery}</Text>
+              {loadingNurseries ? (
+                <ActivityIndicator size="small" color="#517AAD" />
+              ) : nurseryOptions.length === 0 ? (
+                <Text style={[styles.fieldValue, { color: "#aaa" }]}>
+                  No nurseries found
+                </Text>
+              ) : (
+                <Text style={styles.fieldValue}>
+                  {nursery ? `${nursery.name ?? ""}` : "Select nursery"}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -316,25 +424,29 @@ export default function BleachingAnalysis({ onClose }: Props) {
             <View style={styles.modalOverlay}>
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Select Nursery</Text>
-                {nurseryOptions.map((n) => (
-                  <TouchableOpacity
-                    key={n}
-                    onPress={() => {
-                      setNursery(n);
-                      setShowNurseryModal(false);
-                    }}
-                    style={styles.modalItem}
-                  >
-                    <Text
-                      style={[
-                        styles.fieldValue,
-                        nursery === n && { fontWeight: "900" },
-                      ]}
+                {nurseryOptions.map((n) => {
+                  const label = `${n.name ?? n.type} #${n.id}`;
+                  const isSelected = nursery?.id === n.id;
+                  return (
+                    <TouchableOpacity
+                      key={n.id}
+                      onPress={() => {
+                        setNursery(n);
+                        setShowNurseryModal(false);
+                      }}
+                      style={styles.modalItem}
                     >
-                      {n}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.fieldValue,
+                          isSelected && { color: "#517AAD", fontWeight: "900" },
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
                 <TouchableOpacity
                   onPress={() => setShowNurseryModal(false)}
                   style={styles.modalClose}
@@ -441,30 +553,55 @@ export default function BleachingAnalysis({ onClose }: Props) {
           <Modal visible={showSuggestions} transparent animationType="slide">
             <View style={styles.modalOverlay}>
               <View style={styles.suggestionsCard}>
-                {result && (() => {
-                  const s = getSuggestions(result.bleaching_percentage);
-                  return (
-                    <>
-                      <View style={[styles.suggestionsTitleRow, { borderBottomColor: s.color }]}>
-                        <Ionicons name={s.icon as any} size={22} color={s.color} />
-                        <Text style={[styles.suggestionsTitle, { color: s.color }]}>
-                          {s.title}
+                {result &&
+                  (() => {
+                    const s = getSuggestions(result.bleaching_percentage);
+                    return (
+                      <>
+                        <View
+                          style={[
+                            styles.suggestionsTitleRow,
+                            { borderBottomColor: s.color },
+                          ]}
+                        >
+                          <Ionicons
+                            name={s.icon as any}
+                            size={22}
+                            color={s.color}
+                          />
+                          <Text
+                            style={[
+                              styles.suggestionsTitle,
+                              { color: s.color },
+                            ]}
+                          >
+                            {s.title}
+                          </Text>
+                        </View>
+                        <Text style={styles.suggestionsPct}>
+                          Bleaching: {result.bleaching_percentage.toFixed(1)}%
                         </Text>
-                      </View>
-                      <Text style={styles.suggestionsPct}>
-                        Bleaching: {result.bleaching_percentage.toFixed(1)}%
-                      </Text>
-                      <ScrollView style={styles.suggestionsList} showsVerticalScrollIndicator={false}>
-                        {s.items.map((item, idx) => (
-                          <View key={idx} style={styles.suggestionItem}>
-                            <Ionicons name={item.icon as any} size={18} color={s.color} style={styles.suggestionItemIcon} />
-                            <Text style={styles.suggestionItemText}>{item.text}</Text>
-                          </View>
-                        ))}
-                      </ScrollView>
-                    </>
-                  );
-                })()}
+                        <ScrollView
+                          style={styles.suggestionsList}
+                          showsVerticalScrollIndicator={false}
+                        >
+                          {s.items.map((item, idx) => (
+                            <View key={idx} style={styles.suggestionItem}>
+                              <Ionicons
+                                name={item.icon as any}
+                                size={18}
+                                color={s.color}
+                                style={styles.suggestionItemIcon}
+                              />
+                              <Text style={styles.suggestionItemText}>
+                                {item.text}
+                              </Text>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </>
+                    );
+                  })()}
                 <TouchableOpacity
                   onPress={() => setShowSuggestions(false)}
                   style={styles.modalClose}

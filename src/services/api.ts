@@ -41,6 +41,15 @@ interface HistoryResponse {
   history: HistoryRecord[];
 }
 
+// ── Auth header helpers ───────────────────────────────────────────────────────
+
+function authHeaders(token: string, locationId: number): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    'X-Location-ID': String(locationId),
+  };
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -89,13 +98,17 @@ function parseAnalyzeResult(r: AnalyzeResult): AnalyzeResult {
  * POST /analyze
  * Sends the reef image + metadata to the backend for HF inference.
  */
-export async function analyzeReef(params: {
-  imageUri: string;
-  location: string;
-  date: string; // ISO string
-  nursery: string;
-  coral_id?: string;
-}): Promise<AnalyzeResult> {
+export async function analyzeReef(
+  params: {
+    imageUri: string;
+    location: string;
+    date: string; // ISO string
+    nursery: string;
+    coral_id?: string;
+  },
+  token: string,
+  locationId: number,
+): Promise<AnalyzeResult> {
   const formData = new FormData();
 
   // React Native requires this object shape for file uploads via FormData
@@ -115,6 +128,7 @@ export async function analyzeReef(params: {
     method: "POST",
     body: formData,
     // Do NOT set Content-Type manually — fetch sets the multipart boundary automatically
+    headers: authHeaders(token, locationId),
   });
 
   const raw = await handleResponse<AnalyzeResult>(res);
@@ -127,8 +141,13 @@ export async function analyzeReef(params: {
  * The backend wraps records in { filters, count, history: [...] }
  * so we unwrap and return just the array.
  */
-export async function fetchHistory(): Promise<HistoryRecord[]> {
-  const res = await fetch(`${BASE_URL}/api/bleaching/history`);
+export async function fetchHistory(
+  token: string,
+  locationId: number,
+): Promise<HistoryRecord[]> {
+  const res = await fetch(`${BASE_URL}/api/bleaching/history`, {
+    headers: authHeaders(token, locationId),
+  });
   const data = await handleResponse<HistoryResponse>(res);
   // Guard: always return an array regardless of unexpected response shapes.
   // Also coerce pg's string numerics → JS numbers.

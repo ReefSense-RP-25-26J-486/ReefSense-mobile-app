@@ -5,10 +5,10 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text } from '../components/AppText';
 import { LineChart } from "react-native-gifted-charts";
 import {
   CoralRecord,
@@ -17,6 +17,7 @@ import {
   getCoralHistory,
 } from "../api/growthApi";
 import { colors } from "../constants/colors";
+import { useAuth } from "../context/AuthContext";
 
 interface GrowthDetailsScreenProps {
   coralId: string;
@@ -72,6 +73,7 @@ export default function GrowthDetailsScreen({
   onBack,
   onBackToUploads,
 }: GrowthDetailsScreenProps) {
+  const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<CoralRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function GrowthDetailsScreen({
     setLoading(true);
     setError(null);
     try {
-      const data = await getCoralHistory(coralId);
+      const data = await getCoralHistory(coralId, token!, selectedLocation!.id);
       setRecords([...data].reverse()); // newest first for display
     } catch (err: any) {
       setError(err.message ?? "Failed to load growth data.");
@@ -121,7 +123,7 @@ export default function GrowthDetailsScreen({
           onPress: async () => {
             setDeletingId(recId);
             try {
-              await deleteCoralRecord(recId);
+              await deleteCoralRecord(recId, token!, selectedLocation!.id);
               await fetchHistory();
             } catch (err: any) {
               Alert.alert("Delete Failed", err.message);
@@ -146,7 +148,7 @@ export default function GrowthDetailsScreen({
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteCoral(coralId);
+              await deleteCoral(coralId, token!, selectedLocation!.id);
               onBackToUploads();
             } catch (err: any) {
               Alert.alert("Delete Failed", err.message);
@@ -300,7 +302,7 @@ export default function GrowthDetailsScreen({
                       }
                     >
                       <Text style={styles.deleteRecordIcon}>
-                        {deletingId === rec.id ? "…" : "🗑"}
+                        {deletingId === rec.id ? "…" : "Delete"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -318,7 +320,7 @@ export default function GrowthDetailsScreen({
             style={styles.deleteCoralBtn}
             onPress={handleDeleteCoral}
           >
-            <Text style={styles.deleteCoralText}>🗑  Delete This Coral</Text>
+            <Text style={styles.deleteCoralText}>Delete This Coral</Text>
           </TouchableOpacity>
         </>
       )}
@@ -445,8 +447,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: colors.textSecondary,
   },
-  deleteRecordBtn: { padding: 2 },
-  deleteRecordIcon: { fontSize: 17 },
+  deleteRecordBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CC3344",
+    backgroundColor: "#fff0f0",
+  },
+  deleteRecordIcon: { fontSize: 12, color: "#CC3344", fontWeight: "600" },
   backBtn: {
     backgroundColor: "#5D81B4",
     padding: 15,

@@ -50,10 +50,11 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         width: '100%',
-        backgroundColor: '#FFFFFF',
+        // backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 60,
         borderTopRightRadius: 60,
         paddingTop: 6,
+        marginBottom: 30,
         paddingBottom: Platform.OS === 'ios' ? 8 : 4,
     },
     tabContainer: {

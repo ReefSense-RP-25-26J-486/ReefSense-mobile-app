@@ -1,6 +1,15 @@
 //  Base URL
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
+// ── Auth header helpers ───────────────────────────────────────────────────────
+
+function authHeaders(token: string, locationId: number): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    'X-Location-ID': String(locationId),
+  };
+}
+
 // Types
 export interface AnalyzedCoral {
   coral_id: string;
@@ -52,7 +61,11 @@ export interface CoralSummary {
 }
 
 // POST /api/growth/analyze
-export async function analyzeImage(imageUri: string): Promise<AnalyzeResult> {
+export async function analyzeImage(
+  imageUri: string,
+  token: string,
+  locationId: number,
+): Promise<AnalyzeResult> {
   const formData = new FormData();
 
   const filename = imageUri.split("/").pop() ?? "photo.jpg";
@@ -65,6 +78,7 @@ export async function analyzeImage(imageUri: string): Promise<AnalyzeResult> {
   const res = await fetch(`${BASE_URL}/api/growth/analyze`, {
     method: "POST",
     body: formData,
+    headers: authHeaders(token, locationId),
   });
 
   if (!res.ok) {
@@ -107,16 +121,23 @@ export async function analyzeImage(imageUri: string): Promise<AnalyzeResult> {
 }
 
 // POST /api/growth/records
-export async function saveGrowthRecord(payload: {
-  coral_id: string;
-  species: string;
-  area_cm2: number;
-  confidence?: number;
-  cnn_feed_image?: string;
-}) {
+export async function saveGrowthRecord(
+  payload: {
+    coral_id: string;
+    species: string;
+    area_cm2: number;
+    confidence?: number;
+    cnn_feed_image?: string;
+  },
+  token: string,
+  locationId: number,
+) {
   const res = await fetch(`${BASE_URL}/api/growth/records`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(token, locationId),
+    },
     body: JSON.stringify(payload),
   });
 
@@ -129,17 +150,27 @@ export async function saveGrowthRecord(payload: {
 }
 
 // GET /api/growth/records
-export async function getAllCoralSummaries(): Promise<CoralSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/growth/records`);
+export async function getAllCoralSummaries(
+  token: string,
+  locationId: number,
+): Promise<CoralSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/growth/records`, {
+    headers: authHeaders(token, locationId),
+  });
   if (!res.ok) throw new Error(`Server error ${res.status}`);
   const data = await res.json();
   return data.corals ?? [];
 }
 
 // DELETE /api/growth/records/entry/:recordId  (single record)
-export async function deleteCoralRecord(recordId: number): Promise<void> {
+export async function deleteCoralRecord(
+  recordId: number,
+  token: string,
+  locationId: number,
+): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/growth/records/entry/${recordId}`, {
     method: "DELETE",
+    headers: authHeaders(token, locationId),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -148,10 +179,17 @@ export async function deleteCoralRecord(recordId: number): Promise<void> {
 }
 
 // DELETE /api/growth/records/:coralId  (entire coral + all records)
-export async function deleteCoral(coralId: string): Promise<void> {
+export async function deleteCoral(
+  coralId: string,
+  token: string,
+  locationId: number,
+): Promise<void> {
   const res = await fetch(
     `${BASE_URL}/api/growth/records/${encodeURIComponent(coralId)}`,
-    { method: "DELETE" },
+    {
+      method: "DELETE",
+      headers: authHeaders(token, locationId),
+    },
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -160,9 +198,16 @@ export async function deleteCoral(coralId: string): Promise<void> {
 }
 
 // GET /api/growth/records/:coralId
-export async function getCoralHistory(coralId: string): Promise<CoralRecord[]> {
+export async function getCoralHistory(
+  coralId: string,
+  token: string,
+  locationId: number,
+): Promise<CoralRecord[]> {
   const res = await fetch(
     `${BASE_URL}/api/growth/records/${encodeURIComponent(coralId)}`,
+    {
+      headers: authHeaders(token, locationId),
+    },
   );
   if (!res.ok) throw new Error(`Server error ${res.status}`);
   const data = await res.json();

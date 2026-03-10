@@ -1,15 +1,18 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
+import { useAuth } from '../context/AuthContext';
 
 interface RecordsScreenProps {
     onBack: () => void;
     onAdd: () => void;
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_DATA
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL
 
 const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
+    const { token, selectedLocation } = useAuth();
     const [tableData, setTableData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [editModalVisible, setEditModalVisible] = useState(false);
@@ -18,7 +21,12 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
     const fetchRecords = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${BASE_URL}/api/records`);
+            const response = await fetch(`${BASE_URL}/api/data/records`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'X-Location-ID': String(selectedLocation?.id ?? ''),
+                },
+            });
             if (response.ok) {
                 const data = await response.json();
                 setTableData(data.sort((a: any, b: any) => a.id - b.id));
@@ -41,8 +49,12 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            const res = await fetch(`${BASE_URL}/api/delete/${dbId}`, {
-                                method: 'DELETE'
+                            const res = await fetch(`${BASE_URL}/api/data/records/${dbId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    'X-Location-ID': String(selectedLocation?.id ?? ''),
+                                },
                             });
                             if (res.ok) fetchRecords();
                         } catch (e) {
@@ -57,11 +69,13 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
     const handleUpdate = async () => {
         if (!selectedRecord) return;
         try {
-            const res = await fetch(`${BASE_URL}/api/update/${selectedRecord.id}`, {
+            const res = await fetch(`${BASE_URL}/api/data/records/${selectedRecord.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'X-Location-ID': String(selectedLocation?.id ?? ''),
                 },
                 body: JSON.stringify({
                     temp3m: parseFloat(selectedRecord.temp3m),

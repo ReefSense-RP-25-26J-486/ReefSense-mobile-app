@@ -4,13 +4,13 @@ import {
     Alert,
     ScrollView,
     StyleSheet,
-    Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { Text, TextInput } from '../components/AppText';
 import { CoralSummary, deleteCoral, getAllCoralSummaries } from "../api/growthApi";
 import { colors } from "../constants/colors";
+import { useAuth } from "../context/AuthContext";
 
 interface TrackingHistoryScreenProps {
   onViewDetails: (coralId: string) => void;
@@ -36,6 +36,7 @@ export default function TrackingHistoryScreen({
   onViewDetails,
   onBackToUploads,
 }: TrackingHistoryScreenProps) {
+  const { token, selectedLocation } = useAuth();
   const [corals, setCorals] = useState<CoralSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export default function TrackingHistoryScreen({
           onPress: async () => {
             setDeletingId(coralId);
             try {
-              await deleteCoral(coralId);
+              await deleteCoral(coralId, token!, selectedLocation!.id);
               setCorals((prev) => prev.filter((c) => c.coral_id !== coralId));
             } catch (err: any) {
               Alert.alert("Delete Failed", err.message);
@@ -71,7 +72,7 @@ export default function TrackingHistoryScreen({
     setLoading(true);
     setError(null);
     try {
-      const data = await getAllCoralSummaries();
+      const data = await getAllCoralSummaries(token!, selectedLocation!.id);
       const sorted = [...data].sort(
         (a, b) =>
           new Date(b.last_recorded).getTime() -
@@ -183,7 +184,7 @@ export default function TrackingHistoryScreen({
                       }
                     >
                       <Text style={styles.deleteBtnText}>
-                        {deletingId === coral.coral_id ? "…" : "🗑"}
+                        {deletingId === coral.coral_id ? "Removing…" : "Remove"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -307,9 +308,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   deleteBtn: {
-    padding: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CC3344",
+    backgroundColor: "#fff0f0",
   },
-  deleteBtnText: { fontSize: 17 },
+  deleteBtnText: { fontSize: 12, color: "#CC3344", fontWeight: "600" },
   coralIdText: { fontSize: 16, fontWeight: "700", color: "#1a1a2e" },
   countBadge: {
     backgroundColor: "#5D81B4",
