@@ -5,13 +5,13 @@ import {
   Image,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from '../../components/AppText';
 import { useAuth } from '../../context/AuthContext';
 import { fetchHistory, type HistoryRecord } from "../../services/api";

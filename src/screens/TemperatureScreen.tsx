@@ -47,7 +47,8 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
          Math.abs((selectedLocation as any).center_lon - PORT_CITY_LON) < 0.08);
 
     useEffect(() => {
-        if (!isPortCity) { setLoading(false); setApiData(null); return; }
+        // Skip fetch if location isn't Port City or if the AI service URL isn't configured
+        if (!isPortCity || !BASE_URL) { setLoading(false); setApiData(null); return; }
         setLoading(true);
         fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
