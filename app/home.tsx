@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { SafeAreaView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AnalyzedCoral } from "../src/api/growthApi";
 import BottomTab from "../src/components/BottomTab";
 import Header from "../src/components/Header";

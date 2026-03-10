@@ -302,7 +302,7 @@ export default function GrowthDetailsScreen({
                       }
                     >
                       <Text style={styles.deleteRecordIcon}>
-                        {deletingId === rec.id ? "…" : "🗑"}
+                        {deletingId === rec.id ? "…" : "Delete"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -320,7 +320,7 @@ export default function GrowthDetailsScreen({
             style={styles.deleteCoralBtn}
             onPress={handleDeleteCoral}
           >
-            <Text style={styles.deleteCoralText}>🗑  Delete This Coral</Text>
+            <Text style={styles.deleteCoralText}>Delete This Coral</Text>
           </TouchableOpacity>
         </>
       )}
@@ -447,8 +447,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: colors.textSecondary,
   },
-  deleteRecordBtn: { padding: 2 },
-  deleteRecordIcon: { fontSize: 17 },
+  deleteRecordBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CC3344",
+    backgroundColor: "#fff0f0",
+  },
+  deleteRecordIcon: { fontSize: 12, color: "#CC3344", fontWeight: "600" },
   backBtn: {
     backgroundColor: "#5D81B4",
     padding: 15,

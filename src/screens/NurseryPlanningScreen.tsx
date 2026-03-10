@@ -22,13 +22,13 @@ import { useAuth } from "../context/AuthContext";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Fixed map height — avoids the MapView flex-expansion bug on iOS/Android
-const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.44);
+const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.62);
 
 // Bottom-sheet constants
 const TOP_SAFE = 60;
 const PARTIAL_OFFSET = MAP_HEIGHT - TOP_SAFE; // translateY when sheet is "collapsed" (visible top = MAP_HEIGHT)
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS;
 
 const PORT_CITY_REGION = {
   latitude: 6.92,
@@ -189,6 +189,32 @@ const TypeCardIllustration = ({ type, size }: { type: string; size: number }) =>
   );
 };
 
+// Standalone DonutChart component (uses Circle from react-native-svg)
+const DonutChart = ({ pct, size = 130 }: { pct: number; size?: number }) => {
+  const strokeW = 14;
+  const r = (size - strokeW) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const usedArc = Math.max(0, Math.min(pct, 1)) * circumference;
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={cx} cy={cy} r={r} stroke="#DCE6F7" strokeWidth={strokeW} fill="none" />
+      {usedArc > 0 && (
+        <Circle
+          cx={cx} cy={cy} r={r}
+          stroke="#F4845F"
+          strokeWidth={strokeW}
+          fill="none"
+          strokeDasharray={`${usedArc} ${circumference}`}
+          strokeLinecap="round"
+          transform={`rotate(-90, ${cx}, ${cy})`}
+        />
+      )}
+    </Svg>
+  );
+};
+
 type ScreenView =
   | "MAIN"
   | "SELECT_TYPE"
@@ -198,7 +224,8 @@ type ScreenView =
   | "ADD_STEP1"
   | "ADD_STEP2"
   | "VIEW_NURSERY"
-  | "EDIT_NURSERY";
+  | "EDIT_NURSERY"
+  | "VIEW_ALL_NURSERIES";
 
 interface Nursery {
   id: number;
@@ -318,6 +345,8 @@ export default function NurseryPlanningScreen() {
   const [selectedType, setSelectedType] = useState<string>("table");
   const [heightCm, setHeightCm] = useState("");
   const [widthCm, setWidthCm] = useState("");
+  const [lengthCm, setLengthCm] = useState("");
+  const [lengthUnit, setLengthUnit] = useState<"cm" | "m">("cm");
   const [coralSpecies, setCoralSpecies] = useState("Acropora");
   const [nurseryName, setNurseryName] = useState("");
   const [datePlacement] = useState(new Date().toISOString().split("T")[0]);
@@ -330,6 +359,8 @@ export default function NurseryPlanningScreen() {
   // Edit-nursery form
   const [editHeight, setEditHeight] = useState("");
   const [editWidth, setEditWidth] = useState("");
+  const [editLengthCm, setEditLengthCm] = useState("");
+  const [editLengthUnit, setEditLengthUnit] = useState<"cm" | "m">("cm");
   const [editCoralSpecies, setEditCoralSpecies] = useState("Acropora");
   const [editNotes, setEditNotes] = useState("");
   const [editDepth, setEditDepth] = useState("");
@@ -440,6 +471,8 @@ export default function NurseryPlanningScreen() {
   const resetAddForm = () => {
     setHeightCm("");
     setWidthCm("");
+    setLengthCm("");
+    setLengthUnit("cm");
     setCoralSpecies("Acropora");
     setNurseryName("");
     setDepthM("");
@@ -480,13 +513,12 @@ export default function NurseryPlanningScreen() {
   // ── Actions ──────────────────────────────────────────────────────────────────
 
   const handleFindLocations = async () => {
-    if (!heightCm.trim() || !widthCm.trim()) {
-      Alert.alert("Missing Dimensions", "Please enter both values.");
+    if (!heightCm.trim() || !widthCm.trim() || (!isCircleType(selectedType) && !lengthCm.trim())) {
+      Alert.alert("Missing Dimensions", "Please enter all required values.");
       return;
     }
     setLoading(true);
     try {
-      const widthM = toMeters(widthCm, widthUnit);
       const heightM = toMeters(heightCm, heightUnit);
       const body: Record<string, unknown> = {
         nursery_type: selectedType,
@@ -494,10 +526,10 @@ export default function NurseryPlanningScreen() {
         limit: 8,
       };
       if (!isCircleType(selectedType)) {
-        body.width_m = widthM;
-        body.length_m = widthM;
+        body.width_m = toMeters(widthCm, widthUnit);
+        body.length_m = toMeters(lengthCm, lengthUnit);
       } else {
-        body.radius_m = widthM / 2;
+        body.radius_m = toMeters(widthCm, widthUnit) / 2;
       }
 
       const res = await fetch(`${BASE_URL}/api/gis/top-locations-by-nursery`, {
@@ -540,7 +572,6 @@ export default function NurseryPlanningScreen() {
     }
     setLoading(true);
     try {
-      const widthM = toMeters(widthCm, widthUnit);
       const heightM = toMeters(heightCm, heightUnit);
       const body: Record<string, unknown> = {
         type: selectedType,
@@ -554,10 +585,10 @@ export default function NurseryPlanningScreen() {
         notes: notes.trim() || null,
       };
       if (!isCircleType(selectedType)) {
-        body.width_m = widthM;
-        body.length_m = widthM;
+        body.width_m = toMeters(widthCm, widthUnit);
+        body.length_m = toMeters(lengthCm, lengthUnit);
       } else {
-        body.radius_m = widthM / 2;
+        body.radius_m = toMeters(widthCm, widthUnit) / 2;
       }
 
       const res = await fetch(`${BASE_URL}/api/gis/nurseries`, {
@@ -591,10 +622,15 @@ export default function NurseryPlanningScreen() {
         depth_m: editDepth ? parseFloat(editDepth) : null,
         height_m: editHeight ? toMeters(editHeight, editHeightUnit) : null,
       };
-      if (!isCircleType(selectedNursery.type) && editWidth) {
-        const wm = toMeters(editWidth, editWidthUnit);
-        body.width_m = wm;
-        body.length_m = wm;
+      if (!isCircleType(selectedNursery.type)) {
+        if (editWidth) {
+          body.width_m = toMeters(editWidth, editWidthUnit);
+        }
+        if (editLengthCm) {
+          body.length_m = toMeters(editLengthCm, editLengthUnit);
+        } else if (editWidth) {
+          body.length_m = toMeters(editWidth, editWidthUnit);
+        }
       } else if (editWidth) {
         body.radius_m = toMeters(editWidth, editWidthUnit) / 2;
       }
@@ -642,6 +678,12 @@ export default function NurseryPlanningScreen() {
           ? String(Math.round(selectedNursery.radius_m * 200))
           : "",
     );
+    setEditLengthCm(
+      !isCircleType(selectedNursery.type) && selectedNursery.length_m != null
+        ? String(Math.round(selectedNursery.length_m * 100))
+        : ""
+    );
+    setEditLengthUnit("cm");
     setEditCoralSpecies(selectedNursery.coral_species ?? "Acropora");
     setEditNotes(selectedNursery.notes ?? "");
     setEditDepth(
@@ -650,6 +692,40 @@ export default function NurseryPlanningScreen() {
     setEditHeightUnit("cm");
     setEditWidthUnit("cm");
     setView("EDIT_NURSERY");
+  };
+
+  const handleDeleteNursery = (id: number, name: string) => {
+    Alert.alert(
+      "Delete Nursery",
+      `Delete "${name}"? This will permanently remove the nursery.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const res = await fetch(`${BASE_URL}/api/gis/nurseries/${id}`, {
+                method: "DELETE",
+                headers: gisHeaders(),
+              });
+              if (res.ok) {
+                await fetchAll();
+                resetToMain();
+              } else {
+                const err = await res.json();
+                Alert.alert("Error", err.error ?? "Failed to delete nursery.");
+              }
+            } catch {
+              Alert.alert("Network Error", "Could not connect to server.");
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // ── MAP ───────────────────────────────────────────────────────────────────────
@@ -762,40 +838,84 @@ export default function NurseryPlanningScreen() {
 
   // ── PANEL VIEWS ───────────────────────────────────────────────────────────────
 
-  const renderMainPanel = () => (
-    <View style={styles.panel}>
-      <View style={styles.summaryTitleRow}>
-        <Text style={styles.summaryTitle}>Total Nurseries</Text>
-        <Text style={styles.summaryCount}>{nurseries.length}</Text>
-      </View>
-      <View style={styles.divider} />
-      {Object.keys(TYPE_META).map((key) => (
-        <View style={styles.summarySubRow} key={key}>
-          <Text style={styles.summarySubLabel}>{TYPE_META[key].label}</Text>
-          <Text style={styles.summarySubCount}>
-            {nurseries.filter((n) => n.type === key).length}
-          </Text>
-        </View>
-      ))}
-      {restorationZone != null && (
-        <>
-          <View style={styles.divider} />
-          <View style={styles.summarySubRow}>
-            <Text style={styles.summarySubLabel}>Restoration Zone</Text>
-            <Text style={styles.summarySubCount}>
-              {Math.round(restorationZone.area_m2).toLocaleString()} m²
-            </Text>
+  const renderMainPanel = () => {
+    const usedArea = nurseries.reduce((sum, n) => sum + (n.area_m2 || 0), 0);
+    const totalArea = restorationZone?.area_m2 ?? 0;
+    const availableArea = Math.max(0, totalArea - usedArea);
+    const usagePct = totalArea > 0 ? usedArea / totalArea : 0;
+    const chartSize = 130;
+
+    return (
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 4, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        {/* Title row */}
+        <View style={styles.mainHeaderRow}>
+          <Text style={styles.mainPanelTitle}>Nursery Overview</Text>
+          <View style={styles.totalCountBadge}>
+            <Text style={styles.totalCountNum}>{nurseries.length}</Text>
+            <Text style={styles.totalCountLabel}>Nurseries</Text>
           </View>
-        </>
-      )}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setView("SELECT_TYPE")}
-      >
-        <MaterialIcons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
-    </View>
-  );
+        </View>
+
+        {/* Donut chart card */}
+        <View style={styles.chartCard}>
+          <View style={styles.chartRow}>
+            <View style={{ alignItems: "center", justifyContent: "center" }}>
+              <DonutChart pct={usagePct} size={chartSize} />
+              <View style={{ position: "absolute", width: chartSize, height: chartSize, alignItems: "center", justifyContent: "center" }}>
+                <Text style={styles.chartPct}>{Math.round(usagePct * 100)}%</Text>
+                <Text style={styles.chartPctLabel}>Used</Text>
+              </View>
+            </View>
+            <View style={styles.chartLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: "#F4845F" }]} />
+                <View>
+                  <Text style={styles.legendVal}>{usedArea.toFixed(1)} m²</Text>
+                  <Text style={styles.legendLabel}>Used Area</Text>
+                </View>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: PRIMARY }]} />
+                <View>
+                  <Text style={styles.legendVal}>{availableArea.toFixed(1)} m²</Text>
+                  <Text style={styles.legendLabel}>Available</Text>
+                </View>
+              </View>
+              {totalArea > 0 && (
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#27975A" }]} />
+                  <View>
+                    <Text style={styles.legendVal}>{Math.round(totalArea).toLocaleString()} m²</Text>
+                    <Text style={styles.legendLabel}>Total Zone</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Type breakdown */}
+        <View style={styles.typeBreakdownGrid}>
+          {Object.keys(TYPE_META).map((key) => {
+            const count = nurseries.filter((n) => n.type === key).length;
+            const meta = TYPE_META[key];
+            return (
+              <View key={key} style={[styles.typeBreakdownChip, { borderLeftColor: meta.color }]}>
+                <Text style={styles.typeBreakdownLabel}>{meta.label}</Text>
+                <Text style={[styles.typeBreakdownCount, { color: meta.color }]}>{count}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* View All Nurseries button */}
+        <TouchableOpacity style={styles.viewAllBtn} onPress={() => setView("VIEW_ALL_NURSERIES")}>
+          <Text style={styles.viewAllBtnText}>View All Nurseries</Text>
+          <MaterialIcons name="chevron-right" size={20} color={PRIMARY} />
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
 
   const renderSelectTypePanel = () => {
     // All types from backend, fall back to defaults if not yet loaded
@@ -853,8 +973,6 @@ export default function NurseryPlanningScreen() {
   };
 
   const renderEnterDimensionsPanel = () => {
-    const circle = isCircleType(selectedType);
-    const dimLabel = circle ? "Radius" : "Width";
     return (
       <KeyboardAvoidingView
         style={styles.panel}
@@ -896,34 +1014,32 @@ export default function NurseryPlanningScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.formRow}>
-            <Text style={styles.formLabel}>{dimLabel}</Text>
-            <TextInput
-              style={styles.formInput}
-              value={widthCm}
-              onChangeText={setWidthCm}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor="#bbb"
-              returnKeyType="done"
-            />
-            <TouchableOpacity
-              style={[
-                styles.unitTag,
-                widthUnit === "m" && styles.unitTagActive,
-              ]}
-              onPress={() => setWidthUnit((u) => (u === "cm" ? "m" : "cm"))}
-            >
-              <Text
-                style={[
-                  styles.unitTagText,
-                  widthUnit === "m" && styles.unitTagTextActive,
-                ]}
-              >
-                {widthUnit.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {isCircleType(selectedType) ? (
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>Radius</Text>
+              <TextInput style={styles.formInput} value={widthCm} onChangeText={setWidthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" returnKeyType="done" />
+              <TouchableOpacity style={[styles.unitTag, widthUnit === "m" && styles.unitTagActive]} onPress={() => setWidthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+                <Text style={[styles.unitTagText, widthUnit === "m" && styles.unitTagTextActive]}>{widthUnit.toUpperCase()}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Width</Text>
+                <TextInput style={styles.formInput} value={widthCm} onChangeText={setWidthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" returnKeyType="next" />
+                <TouchableOpacity style={[styles.unitTag, widthUnit === "m" && styles.unitTagActive]} onPress={() => setWidthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+                  <Text style={[styles.unitTagText, widthUnit === "m" && styles.unitTagTextActive]}>{widthUnit.toUpperCase()}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Length</Text>
+                <TextInput style={styles.formInput} value={lengthCm} onChangeText={setLengthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" returnKeyType="done" />
+                <TouchableOpacity style={[styles.unitTag, lengthUnit === "m" && styles.unitTagActive]} onPress={() => setLengthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+                  <Text style={[styles.unitTagText, lengthUnit === "m" && styles.unitTagTextActive]}>{lengthUnit.toUpperCase()}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           <View style={styles.formRow}>
             <Text style={styles.formLabel}>Coral{"\n"}Species</Text>
@@ -992,12 +1108,6 @@ export default function NurseryPlanningScreen() {
         )}
         <View style={{ height: 80 }} />
       </ScrollView>
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setView("SELECT_TYPE")}
-      >
-        <MaterialIcons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
       <TouchableOpacity
         style={styles.backLink}
         onPress={() => setView("ENTER_DIMENSIONS")}
@@ -1100,32 +1210,34 @@ export default function NurseryPlanningScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.fullRow}>
-          <Text style={styles.fullLabel}>
-            {isCircleType(selectedType) ? "Radius" : "Width"}
-          </Text>
-          <TextInput
-            style={styles.fullInputShort}
-            value={widthCm}
-            onChangeText={setWidthCm}
-            keyboardType="numeric"
-            placeholder="0"
-            placeholderTextColor="#bbb"
-          />
-          <TouchableOpacity
-            style={[styles.unitTag, widthUnit === "m" && styles.unitTagActive]}
-            onPress={() => setWidthUnit((u) => (u === "cm" ? "m" : "cm"))}
-          >
-            <Text
-              style={[
-                styles.unitTagText,
-                widthUnit === "m" && styles.unitTagTextActive,
-              ]}
-            >
-              {widthUnit.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        </View>
+
+        {isCircleType(selectedType) ? (
+          <View style={styles.fullRow}>
+            <Text style={styles.fullLabel}>Radius</Text>
+            <TextInput style={styles.fullInputShort} value={widthCm} onChangeText={setWidthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" />
+            <TouchableOpacity style={[styles.unitTag, widthUnit === "m" && styles.unitTagActive]} onPress={() => setWidthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+              <Text style={[styles.unitTagText, widthUnit === "m" && styles.unitTagTextActive]}>{widthUnit.toUpperCase()}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <View style={styles.fullRow}>
+              <Text style={styles.fullLabel}>Width</Text>
+              <TextInput style={styles.fullInputShort} value={widthCm} onChangeText={setWidthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" />
+              <TouchableOpacity style={[styles.unitTag, widthUnit === "m" && styles.unitTagActive]} onPress={() => setWidthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+                <Text style={[styles.unitTagText, widthUnit === "m" && styles.unitTagTextActive]}>{widthUnit.toUpperCase()}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.fullRow}>
+              <Text style={styles.fullLabel}>Length</Text>
+              <TextInput style={styles.fullInputShort} value={lengthCm} onChangeText={setLengthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" />
+              <TouchableOpacity style={[styles.unitTag, lengthUnit === "m" && styles.unitTagActive]} onPress={() => setLengthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+                <Text style={[styles.unitTagText, lengthUnit === "m" && styles.unitTagTextActive]}>{lengthUnit.toUpperCase()}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
         <View style={styles.fullRow}>
           <Text style={styles.fullLabel}>Coral{"\n"}Species</Text>
           <TouchableOpacity
@@ -1256,6 +1368,7 @@ export default function NurseryPlanningScreen() {
           isCircleType(selectedNursery.type) ? "Radius" : "Width",
           getWidthDisplay(selectedNursery),
         )}
+        {selectedNursery.type === 'table' && viewRow("Length", selectedNursery.length_m != null ? `${Math.round(selectedNursery.length_m * 100)} CM` : "--")}
         {viewRow("Coral\nSpecies", selectedNursery.coral_species ?? "--")}
         {viewRow(
           "Date of\nPlacement",
@@ -1275,6 +1388,12 @@ export default function NurseryPlanningScreen() {
           onPress={openNurseryEdit}
         >
           <Text style={styles.primaryBtnText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteNurseryBtn}
+          onPress={() => handleDeleteNursery(selectedNursery.id, getNurseryDisplayName(selectedNursery))}
+        >
+          <Text style={styles.deleteNurseryBtnText}>Delete Nursery</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.backLink} onPress={resetToMain}>
           <Text style={styles.backLinkText}>← Back to Map</Text>
@@ -1331,31 +1450,20 @@ export default function NurseryPlanningScreen() {
           </View>
           <View style={styles.fullRow}>
             <Text style={styles.fullLabel}>{circle ? "Radius" : "Width"}</Text>
-            <TextInput
-              style={styles.fullInputShort}
-              value={editWidth}
-              onChangeText={setEditWidth}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor="#bbb"
-            />
-            <TouchableOpacity
-              style={[
-                styles.unitTag,
-                editWidthUnit === "m" && styles.unitTagActive,
-              ]}
-              onPress={() => setEditWidthUnit((u) => (u === "cm" ? "m" : "cm"))}
-            >
-              <Text
-                style={[
-                  styles.unitTagText,
-                  editWidthUnit === "m" && styles.unitTagTextActive,
-                ]}
-              >
-                {editWidthUnit.toUpperCase()}
-              </Text>
+            <TextInput style={styles.fullInputShort} value={editWidth} onChangeText={setEditWidth} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" />
+            <TouchableOpacity style={[styles.unitTag, editWidthUnit === "m" && styles.unitTagActive]} onPress={() => setEditWidthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+              <Text style={[styles.unitTagText, editWidthUnit === "m" && styles.unitTagTextActive]}>{editWidthUnit.toUpperCase()}</Text>
             </TouchableOpacity>
           </View>
+          {!circle && (
+            <View style={styles.fullRow}>
+              <Text style={styles.fullLabel}>Length</Text>
+              <TextInput style={styles.fullInputShort} value={editLengthCm} onChangeText={setEditLengthCm} keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb" />
+              <TouchableOpacity style={[styles.unitTag, editLengthUnit === "m" && styles.unitTagActive]} onPress={() => setEditLengthUnit((u) => (u === "cm" ? "m" : "cm"))}>
+                <Text style={[styles.unitTagText, editLengthUnit === "m" && styles.unitTagTextActive]}>{editLengthUnit.toUpperCase()}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.fullRow}>
             <Text style={styles.fullLabel}>Coral{"\n"}Species</Text>
             <TouchableOpacity
@@ -1434,6 +1542,45 @@ export default function NurseryPlanningScreen() {
     );
   };
 
+  const renderViewAllNurseries = () => (
+    <ScrollView
+      style={styles.fullScreen}
+      contentContainerStyle={styles.fullScreenContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.panelTitle}>All Nurseries</Text>
+      {nurseries.length === 0 ? (
+        <Text style={styles.emptyText}>No nurseries yet. Tap + to add one.</Text>
+      ) : (
+        nurseries.map((n) => {
+          const meta = TYPE_META[n.type] ?? { label: n.type, color: PRIMARY };
+          return (
+            <TouchableOpacity
+              key={n.id}
+              style={styles.nurseryListCard}
+              onPress={() => openNurseryView(n)}
+            >
+              <View style={[styles.nurseryListDot, { backgroundColor: meta.color }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.nurseryListName}>{getNurseryDisplayName(n)}</Text>
+                <Text style={styles.nurseryListSub}>
+                  {meta.label} · {n.area_m2 != null ? `${n.area_m2.toFixed(1)} m²` : "--"}
+                </Text>
+                {n.coral_species ? (
+                  <Text style={styles.nurseryListSpecies}>{n.coral_species}</Text>
+                ) : null}
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#aaa" />
+            </TouchableOpacity>
+          );
+        })
+      )}
+      <TouchableOpacity style={styles.backLink} onPress={() => setView("MAIN")}>
+        <Text style={styles.backLinkText}>← Back</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
   // ── SPECIES PICKER MODAL ──────────────────────────────────────────────────────
 
   const renderSpeciesModal = (isEdit: boolean) => (
@@ -1498,6 +1645,7 @@ export default function NurseryPlanningScreen() {
     "ADD_STEP2",
     "VIEW_NURSERY",
     "EDIT_NURSERY",
+    "VIEW_ALL_NURSERIES",
   ].includes(view);
 
   if (initialLoading) {
@@ -1539,6 +1687,8 @@ export default function NurseryPlanningScreen() {
         return renderViewNursery();
       case "EDIT_NURSERY":
         return renderEditNursery();
+      case "VIEW_ALL_NURSERIES":
+        return renderViewAllNurseries();
       default:
         return null;
     }
@@ -1555,6 +1705,15 @@ export default function NurseryPlanningScreen() {
           </View>
           {renderBottomPanel()}
         </Animated.View>
+      )}
+
+      {needsMap && (view === "MAIN" || view === "SUGGESTED_LOCATIONS" || view === "ENTER_DIMENSIONS") && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setView("SELECT_TYPE")}
+        >
+          <MaterialIcons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
       )}
 
       {!needsMap && renderFullScreenView()}
@@ -1719,22 +1878,45 @@ const styles = StyleSheet.create({
   },
   divider: { height: 1, backgroundColor: "#E5E7EB", marginVertical: 8 },
 
-  // ── MAIN summary ──
-  summaryTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 2,
-  },
-  summaryTitle: { fontSize: 16, fontWeight: "700", color: "#000" },
-  summaryCount: { fontSize: 16, fontWeight: "700", color: "#000" },
-  summarySubRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
-  },
-  summarySubLabel: { fontSize: 14, color: "#444" },
-  summarySubCount: { fontSize: 14, color: "#444" },
+  // ── MAIN panel ──
+  mainHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  mainPanelTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
+  totalCountBadge: { backgroundColor: PRIMARY, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, alignItems: "center" },
+  totalCountNum: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  totalCountLabel: { fontSize: 10, color: "#c8d8f4", fontWeight: "500" },
+
+  // Chart card
+  chartCard: { backgroundColor: "#F0F5FF", borderRadius: 18, padding: 16, marginBottom: 14 },
+  chartRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chartCenter: { position: "absolute", alignSelf: "center", alignItems: "center", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center" },
+  chartPct: { fontSize: 20, fontWeight: "800", color: "#F4845F" },
+  chartPctLabel: { fontSize: 10, color: "#888", fontWeight: "500" },
+  chartLegend: { flex: 1, paddingLeft: 16, gap: 10 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendVal: { fontSize: 13, fontWeight: "700", color: "#111" },
+  legendLabel: { fontSize: 11, color: "#888" },
+
+  // Type breakdown
+  typeBreakdownGrid: { gap: 8, marginBottom: 14 },
+  typeBreakdownChip: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#F8FAFF", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderLeftWidth: 4 },
+  typeBreakdownLabel: { fontSize: 14, color: "#333", fontWeight: "500" },
+  typeBreakdownCount: { fontSize: 16, fontWeight: "700" },
+
+  // View All button
+  viewAllBtn: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#EBF1FB", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: "#D0DEFA" },
+  viewAllBtnText: { fontSize: 14, fontWeight: "600", color: PRIMARY },
+
+  // Nursery list card (for VIEW_ALL_NURSERIES)
+  nurseryListCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFF", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E8EFF8" },
+  nurseryListDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+  nurseryListName: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 2 },
+  nurseryListSub: { fontSize: 12, color: "#666" },
+  nurseryListSpecies: { fontSize: 11, color: "#999", marginTop: 2 },
+
+  // Delete nursery button
+  deleteNurseryBtn: { backgroundColor: "#fff0f0", borderWidth: 1.5, borderColor: "#CC3344", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 12 },
+  deleteNurseryBtnText: { color: "#CC3344", fontSize: 15, fontWeight: "700" },
 
   // ── FAB ──
   fab: {

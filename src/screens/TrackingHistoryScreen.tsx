@@ -184,7 +184,7 @@ export default function TrackingHistoryScreen({
                       }
                     >
                       <Text style={styles.deleteBtnText}>
-                        {deletingId === coral.coral_id ? "…" : "🗑"}
+                        {deletingId === coral.coral_id ? "Removing…" : "Remove"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -308,9 +308,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   deleteBtn: {
-    padding: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CC3344",
+    backgroundColor: "#fff0f0",
   },
-  deleteBtnText: { fontSize: 17 },
+  deleteBtnText: { fontSize: 12, color: "#CC3344", fontWeight: "600" },
   coralIdText: { fontSize: 16, fontWeight: "700", color: "#1a1a2e" },
   countBadge: {
     backgroundColor: "#5D81B4",
