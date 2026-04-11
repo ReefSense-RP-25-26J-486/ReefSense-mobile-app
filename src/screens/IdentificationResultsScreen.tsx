@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     Image,
+    Modal,
     ScrollView,
     StyleSheet,
     TouchableOpacity,
@@ -12,6 +13,14 @@ import { Text, TextInput } from '../components/AppText';
 import { AnalyzedCoral, saveGrowthRecord } from "../api/growthApi";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
+
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS ?? "";
+
+interface NurseryOption {
+  id: number;
+  name: string | null;
+  type: string;
+}
 
 interface IdentificationResultsScreenProps {
   corals: AnalyzedCoral[];
@@ -37,6 +46,34 @@ export default function IdentificationResultsScreen({
   const [savingId, setSavingId] = useState<string | null>(null);
   // User-entered IDs (keyed by temp coral_id from AI)
   const [coralIdInputs, setCoralIdInputs] = useState<Record<string, string>>({});
+  // Nursery picker
+  const [nurseryOptions, setNurseryOptions] = useState<NurseryOption[]>([]);
+  const [selectedNursery, setSelectedNursery] = useState<NurseryOption | null>(null);
+  const [loadingNurseries, setLoadingNurseries] = useState(false);
+  const [showNurseryModal, setShowNurseryModal] = useState(false);
+
+  useEffect(() => {
+    if (!token || !selectedLocation) return;
+    setLoadingNurseries(true);
+    fetch(`${BASE_URL}/api/gis/nurseries`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Location-ID': String(selectedLocation.id),
+      },
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const list: NurseryOption[] = (d.nurseries ?? []).map((n: any) => ({
+          id: n.id,
+          name: n.name,
+          type: n.type,
+        }));
+        setNurseryOptions(list);
+        if (list.length > 0) setSelectedNursery(list[0]);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingNurseries(false));
+  }, [token, selectedLocation]);
 
   const isSaved = (tempId: string) => savedCoralIds[tempId] !== undefined;
 
@@ -57,6 +94,7 @@ export default function IdentificationResultsScreen({
           area_cm2: coral.area_cm2,
           confidence: coral.confidence,
           cnn_feed_image: coral.cnn_feed_image ?? imageUri,
+          nursery_id: selectedNursery?.id,
         },
         token!,
         selectedLocation!.id,
@@ -100,6 +138,52 @@ export default function IdentificationResultsScreen({
       )}
 
       <Text style={styles.subtitle}>Identified Corals</Text>
+
+      {/* Nursery picker — shared across all corals in this batch */}
+      <View style={styles.nurseryRow}>
+        <Text style={styles.nurseryLabel}>Nursery</Text>
+        <TouchableOpacity
+          style={styles.nurseryField}
+          onPress={() => nurseryOptions.length > 0 && setShowNurseryModal(true)}
+        >
+          {loadingNurseries ? (
+            <ActivityIndicator size="small" color="#5D81B4" />
+          ) : nurseryOptions.length === 0 ? (
+            <Text style={styles.nurseryPlaceholder}>No nurseries found</Text>
+          ) : (
+            <Text style={styles.nurseryValue}>
+              {selectedNursery ? (selectedNursery.name ?? selectedNursery.type) : "Select nursery"}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Nursery selector modal */}
+      <Modal visible={showNurseryModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Select Nursery</Text>
+            {nurseryOptions.map((n) => {
+              const label = n.name ?? n.type;
+              const isSelected = selectedNursery?.id === n.id;
+              return (
+                <TouchableOpacity
+                  key={n.id}
+                  onPress={() => { setSelectedNursery(n); setShowNurseryModal(false); }}
+                  style={styles.modalItem}
+                >
+                  <Text style={[styles.modalItemText, isSelected && styles.modalItemSelected]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity onPress={() => setShowNurseryModal(false)} style={styles.modalCancel}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {corals.map((coral) => {
         const saved = isSaved(coral.coral_id);
@@ -263,4 +347,53 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   savedBadgeText: { fontSize: 11, color: "#155724", fontWeight: "600" },
+
+  // Nursery picker
+  nurseryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  nurseryLabel: {
+    width: 72,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  nurseryField: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  nurseryValue: { fontSize: 14, fontWeight: "700", color: "#1a1a2e" },
+  nurseryPlaceholder: { fontSize: 14, color: "#aaa" },
+
+  // Nursery modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    width: "84%",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
+  },
+  modalTitle: { fontWeight: "800", fontSize: 16, marginBottom: 12 },
+  modalItem: {
+    paddingVertical: 13,
+    width: "100%",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF4FF",
+  },
+  modalItemText: { fontSize: 15, color: "#333", fontWeight: "600" },
+  modalItemSelected: { color: "#5D81B4", fontWeight: "800" },
+  modalCancel: { marginTop: 12, paddingVertical: 8 },
+  modalCancelText: { color: "#5D81B4", fontWeight: "700" },
 });

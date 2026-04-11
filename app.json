@@ -24,7 +24,8 @@
         "googleMaps": {
           "apiKey": "AIzaSyB1Mc8fvVBfFzW_Bte2d2UO-iQAuiFrQAc"
         }
-      }
+      },
+      "package": "com.reefsense.ReefSense"
     },
     "web": {
       "output": "static",
@@ -49,6 +50,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c2e23ecd-709e-4cd8-84fb-0d5617a5be80"
+      }
     }
   }
 }

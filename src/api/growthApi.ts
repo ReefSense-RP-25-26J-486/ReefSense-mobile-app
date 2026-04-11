@@ -128,6 +128,7 @@ export async function saveGrowthRecord(
     area_cm2: number;
     confidence?: number;
     cnn_feed_image?: string;
+    nursery_id?: number;
   },
   token: string,
   locationId: number,
