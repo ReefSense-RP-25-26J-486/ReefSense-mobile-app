@@ -529,7 +529,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
                     <View style={styles.analysisButtonsRow}>
                       <TouchableOpacity
                         style={styles.analysisAction}
-                        onPress={() => setShowSuggestions(true)}
+                        onPress={() => { setShowResult(false); setShowSuggestions(true); }}
                       >
                         <Text style={styles.analysisActionText}>
                           Suggestions
@@ -603,10 +603,10 @@ export default function BleachingAnalysis({ onClose }: Props) {
                     );
                   })()}
                 <TouchableOpacity
-                  onPress={() => setShowSuggestions(false)}
+                  onPress={() => { setShowSuggestions(false); setShowResult(true); }}
                   style={styles.modalClose}
                 >
-                  <Text style={styles.modalCloseText}>Close</Text>
+                  <Text style={styles.modalCloseText}>Back to Results</Text>
                 </TouchableOpacity>
               </View>
             </View>
