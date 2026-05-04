@@ -1,39 +1,43 @@
-//  Base URL
+// Base URL
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
-// ── Auth header helpers ───────────────────────────────────────────────────────
-
-function authHeaders(token: string, locationId: number): Record<string, string> {
+function authHeaders(
+  token: string,
+  locationId: number,
+): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
-    'X-Location-ID': String(locationId),
+    "X-Location-ID": String(locationId),
   };
 }
 
 // Types
+
 export interface AnalyzedCoral {
   coral_id: string;
   species: string;
   area_cm2: number;
   confidence: number;
   cnn_feed_image?: string;
+  /** [x, y] centroid in original image pixels — returned by updated HF app */
+  centroid?: [number, number];
 }
 
 export interface AnalyzeResult {
   corals: AnalyzedCoral[];
   annotatedImage: string | null;
   enhancedImage: string | null;
+  /** [width, height] of original image — returned by updated HF app */
+  imageSize?: [number, number];
 }
 
 export interface AnalyzeResponse {
-  // Actual HuggingFace space format
   status?: string;
   detections?: any[];
   enhanced_image?: string;
   annotated_image?: string;
-  // predictions array format
+  image_size?: [number, number];
   predictions?: AnalyzedCoral[];
-  // flat object fallback
   coral_id?: string;
   species?: string;
   area_cm2?: number;
@@ -61,6 +65,7 @@ export interface CoralSummary {
 }
 
 // POST /api/growth/analyze
+
 export async function analyzeImage(
   imageUri: string,
   token: string,
@@ -90,14 +95,16 @@ export async function analyzeImage(
 
   let corals: AnalyzedCoral[] = [];
 
-  // Actual HuggingFace space format: { status, detections: [...], enhanced_image, annotated_image }
   if (data.detections && Array.isArray(data.detections)) {
-    corals = data.detections.map((d: any) => ({
-      coral_id: d.coral_id ?? `coral_${d.id ?? Date.now()}`,
+    corals = data.detections.map((d: any, i: number) => ({
+      coral_id: d.coral_id ?? `coral_${d.id ?? i + 1}`,
       species: d.species,
       area_cm2: d.area_cm2,
       confidence: d.confidence,
       cnn_feed_image: d.cnn_feed_image,
+      centroid: Array.isArray(d.centroid)
+        ? (d.centroid as [number, number])
+        : undefined,
     }));
   } else if (data.predictions && Array.isArray(data.predictions)) {
     corals = data.predictions;
@@ -117,10 +124,12 @@ export async function analyzeImage(
     corals,
     annotatedImage: data.annotated_image ?? null,
     enhancedImage: data.enhanced_image ?? null,
+    imageSize: Array.isArray(data.image_size) ? data.image_size : undefined,
   };
 }
 
-// POST /api/growth/records
+//  POST /api/growth/records
+
 export async function saveGrowthRecord(
   payload: {
     coral_id: string;
@@ -151,6 +160,7 @@ export async function saveGrowthRecord(
 }
 
 // GET /api/growth/records
+
 export async function getAllCoralSummaries(
   token: string,
   locationId: number,
@@ -163,7 +173,8 @@ export async function getAllCoralSummaries(
   return data.corals ?? [];
 }
 
-// DELETE /api/growth/records/entry/:recordId  (single record)
+// DELETE /api/growth/records/entry/:recordId
+
 export async function deleteCoralRecord(
   recordId: number,
   token: string,
@@ -179,7 +190,8 @@ export async function deleteCoralRecord(
   }
 }
 
-// DELETE /api/growth/records/:coralId  (entire coral + all records)
+// DELETE /api/growth/records/:coralId
+
 export async function deleteCoral(
   coralId: string,
   token: string,
@@ -187,10 +199,7 @@ export async function deleteCoral(
 ): Promise<void> {
   const res = await fetch(
     `${BASE_URL}/api/growth/records/${encodeURIComponent(coralId)}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(token, locationId),
-    },
+    { method: "DELETE", headers: authHeaders(token, locationId) },
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -199,6 +208,7 @@ export async function deleteCoral(
 }
 
 // GET /api/growth/records/:coralId
+
 export async function getCoralHistory(
   coralId: string,
   token: string,
@@ -206,9 +216,7 @@ export async function getCoralHistory(
 ): Promise<CoralRecord[]> {
   const res = await fetch(
     `${BASE_URL}/api/growth/records/${encodeURIComponent(coralId)}`,
-    {
-      headers: authHeaders(token, locationId),
-    },
+    { headers: authHeaders(token, locationId) },
   );
   if (!res.ok) throw new Error(`Server error ${res.status}`);
   const data = await res.json();

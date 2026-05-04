@@ -16,31 +16,30 @@ import RecordsScreen from "../src/screens/RecordsScreen";
 import StressScreen from "../src/screens/StressScreen";
 import TemperatureScreen from "../src/screens/TemperatureScreen";
 import TrackingHistoryScreen from "../src/screens/TrackingHistoryScreen";
-// Import other screens as you create them
 import BleachingAnalysis from "../src/screens/sahan/BleachingAnalysis";
 import BleachingHistory from "../src/screens/sahan/BleachingHistory";
 import BleachingHome from "../src/screens/sahan/BleachingHome";
-
 import { colors } from "../src/constants/colors";
 
 export default function Home() {
   const { userLocations, selectedLocation, setSelectedLocation } = useAuth();
   const [activeIndex, setActiveIndex] = useState(0);
   const [currentView, setCurrentView] = useState("LIST");
+
+  // Growth tab state
   const [analyzeResults, setAnalyzeResults] = useState<AnalyzedCoral[]>([]);
   const [analyzedImageUri, setAnalyzedImageUri] = useState<string>("");
-  const [annotatedImageBase64, setAnnotatedImageBase64] = useState<
-    string | null
-  >(null);
+  const [annotatedImageBase64, setAnnotatedImageBase64] = useState<string | null>(null);
+  const [enhancedImageBase64, setEnhancedImageBase64] = useState<string | null>(null);
+  const [imageSizeData, setImageSizeData] = useState<[number, number] | undefined>();
   const [selectedCoralId, setSelectedCoralId] = useState<string>("");
-  const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>(
-    {},
-  );
+  const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>({});
 
   const renderContent = () => {
     // Tab 0: GIS Nursery Planning
     if (activeIndex === 0) return <NurseryPlanningScreen />;
 
+    // Tab 1: Temperature / Forecast
     if (activeIndex === 1) {
       switch (currentView) {
         case "FORECAST":
@@ -67,6 +66,7 @@ export default function Home() {
       }
     }
 
+    // Tab 2: Coral ID & Growth Monitoring
     if (activeIndex === 2) {
       switch (currentView) {
         case "IDENTIFICATION_RESULTS":
@@ -75,6 +75,8 @@ export default function Home() {
               corals={analyzeResults}
               imageUri={analyzedImageUri}
               annotatedImage={annotatedImageBase64}
+              enhancedImage={enhancedImageBase64}
+              imageSize={imageSizeData}
               savedCoralIds={savedCoralIds}
               onCoralSaved={(tempId, userCoralId) =>
                 setSavedCoralIds((prev) => ({ ...prev, [tempId]: userCoralId }))
@@ -86,6 +88,7 @@ export default function Home() {
               }}
             />
           );
+
         case "GROWTH_DETAILS":
           return (
             <GrowthDetailsScreen
@@ -94,6 +97,7 @@ export default function Home() {
               onBack={() => setCurrentView("IDENTIFICATION_RESULTS")}
             />
           );
+
         case "TRACKING_HISTORY":
           return (
             <TrackingHistoryScreen
@@ -104,6 +108,7 @@ export default function Home() {
               }}
             />
           );
+
         case "TRACKING_DETAIL":
           return (
             <GrowthDetailsScreen
@@ -112,6 +117,7 @@ export default function Home() {
               onBackToUploads={() => setCurrentView("LIST")}
             />
           );
+
         default:
           return (
             <MediaUploadScreen
@@ -119,6 +125,8 @@ export default function Home() {
                 setAnalyzeResults(result.corals);
                 setAnalyzedImageUri(imageUri);
                 setAnnotatedImageBase64(result.annotatedImage);
+                setEnhancedImageBase64(result.enhancedImage);
+                setImageSizeData(result.imageSize);
                 setSavedCoralIds({});
                 setCurrentView("IDENTIFICATION_RESULTS");
               }}
@@ -128,7 +136,7 @@ export default function Home() {
       }
     }
 
-    // Tab 3: coral bleaching & its sub-screens
+    // Tab 3: Bleaching Analysis
     if (activeIndex === 3) {
       if (currentView === "BLEACHING_ANALYSIS") {
         return <BleachingAnalysis onClose={() => setCurrentView("LIST")} />;
@@ -154,7 +162,7 @@ export default function Home() {
         locations={userLocations}
         selectedLocation={selectedLocation}
         onLocationChange={setSelectedLocation}
-        onProfilePress={() => router.push('/profile')}
+        onProfilePress={() => router.push("/profile")}
       />
       <View style={styles.content}>{renderContent()}</View>
       <BottomTab
@@ -169,6 +177,6 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background},
+  container: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1, paddingHorizontal: 16 },
 });

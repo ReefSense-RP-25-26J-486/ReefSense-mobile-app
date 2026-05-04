@@ -1,24 +1,20 @@
-import {
-    FontAwesome5,
-    MaterialCommunityIcons,
-    MaterialIcons,
-} from "@expo/vector-icons";
+import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Text } from '../components/AppText';
 import {
-    AnalyzeResult,
-    getAllCoralSummaries,
-    analyzeImage,
+  AnalyzeResult,
+  analyzeImage,
+  getAllCoralSummaries,
 } from "../api/growthApi";
+import { Text } from "../components/AppText";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
 
@@ -34,7 +30,9 @@ export default function MediaUploadScreen({
   const { token, selectedLocation } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
-  const [totalObservations, setTotalObservations] = useState<number | null>(null);
+  const [totalObservations, setTotalObservations] = useState<number | null>(
+    null,
+  );
   const [lastSpecies, setLastSpecies] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,10 +40,9 @@ export default function MediaUploadScreen({
     setDataLoading(true);
     getAllCoralSummaries(token, selectedLocation.id)
       .then((corals) => {
-        const total = corals.reduce((sum, c) => sum + c.record_count, 0);
-        setTotalObservations(total);
+        setTotalObservations(corals.reduce((s, c) => s + c.record_count, 0));
         if (corals.length > 0) {
-          const latest = corals.sort(
+          const latest = [...corals].sort(
             (a, b) =>
               new Date(b.last_recorded).getTime() -
               new Date(a.last_recorded).getTime(),
@@ -57,66 +54,85 @@ export default function MediaUploadScreen({
       .finally(() => setDataLoading(false));
   }, []);
 
-  const pickAndAnalyze = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Please allow access to your photo library.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-    });
-
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-
-    const imageUri = result.assets[0].uri;
+  const runAnalysis = async (imageUri: string) => {
     setLoading(true);
     try {
-      const analyzeResult = await analyzeImage(imageUri, token!, selectedLocation!.id);
-
-      if (analyzeResult.corals.length === 0) {
+      const result = await analyzeImage(imageUri, token!, selectedLocation!.id);
+      if (result.corals.length === 0) {
         Alert.alert(
           "No Corals Detected",
-          "The AI could not identify any coral in this image. Try a clearer photo.",
+          "The AI could not identify any coral. Try a clearer photo.",
         );
         return;
       }
-
-      onBrowse(analyzeResult, imageUri);
+      onBrowse(result, imageUri);
     } catch (err: any) {
-      Alert.alert("Analysis Failed", err.message ?? "Could not reach the AI service.");
+      Alert.alert(
+        "Analysis Failed",
+        err.message ?? "Could not reach the AI service.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow camera access.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await runAnalysis(result.assets[0].uri);
+  };
+
+  const handleGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow photo library access.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await runAnalysis(result.assets[0].uri);
+  };
+
   if (dataLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.centred}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingTitle}>Loading Data</Text>
-        <Text style={styles.loadingSubtitle}>Fetching coral observation history...</Text>
+        <Text style={styles.loadingSubtitle}>
+          Fetching coral observation history…
+        </Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.mainContainer} showsVerticalScrollIndicator={false}>
-      <View style={styles.container}>
-        {/* Overview Stats */}
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+        {/* Stats row */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <FontAwesome5 name="microscope" size={20} color="#5D81B4" />
-            <Text style={styles.statValue}>
-              {totalObservations === null ? "—" : totalObservations}
-            </Text>
+            <MaterialCommunityIcons
+              name="microscope"
+              size={22}
+              color="#5D81B4"
+            />
+            <Text style={styles.statValue}>{totalObservations ?? "—"}</Text>
             <Text style={styles.statLabel}>Total Observations</Text>
           </View>
           <View style={styles.statCard}>
-            <MaterialCommunityIcons name="spa" size={26} color="#5D81B4" />
+            <MaterialCommunityIcons name="spa" size={22} color="#5D81B4" />
             <Text style={styles.statValue} numberOfLines={2}>
               {lastSpecies ?? "—"}
             </Text>
@@ -124,108 +140,194 @@ export default function MediaUploadScreen({
           </View>
         </View>
 
-        <Text style={styles.sectionSubtitle}>New Analysis</Text>
+        {/* Hero upload card */}
+        <View style={styles.heroCard}>
+          <MaterialIcons name="photo-camera" size={44} color="#5D81B4" />
+          <Text style={styles.heroTitle}>Add Image</Text>
+          <Text style={styles.heroSubtitle}>
+            Capture or upload a coral image to begin AI analysis
+          </Text>
 
-        {/* Upload box — tap to pick & analyze */}
-        <TouchableOpacity
-          style={[styles.uploadBox, loading && styles.uploadBoxDisabled]}
-          onPress={pickAndAnalyze}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.uploadText}>Analysing image…</Text>
-              <Text style={styles.uploadSubText}>This may take up to 30 seconds</Text>
-            </>
-          ) : (
-            <>
-              <MaterialIcons name="file-upload" size={50} color={colors.primary} />
-              <Text style={styles.uploadText}>Upload Image</Text>
-              <Text style={styles.uploadSubText}>Tap to select a photo</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          <View style={styles.btnRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, loading && styles.btnDisabled]}
+              onPress={handleCamera}
+              disabled={loading}
+            >
+              <MaterialIcons name="photo-camera" size={20} color="#fff" />
+              <Text style={styles.actionBtnText}>Take Photo</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.primaryBtn} onPress={onHistory}>
-          <Text style={styles.btnText}>Track History</Text>
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                styles.actionBtnOutline,
+                loading && styles.btnDisabled,
+              ]}
+              onPress={handleGallery}
+              disabled={loading}
+            >
+              <MaterialIcons name="photo-library" size={20} color="#5D81B4" />
+              <Text style={[styles.actionBtnText, { color: "#5D81B4" }]}>
+                Upload Photo
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Track history */}
+        <TouchableOpacity style={styles.historyBtn} onPress={onHistory}>
+          <MaterialCommunityIcons name="history" size={18} color="#fff" />
+          <Text style={styles.historyBtnText}>Track History</Text>
         </TouchableOpacity>
 
         <View style={{ height: 100 }} />
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Full-screen loading overlay while AI runs */}
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.analyzingTitle}>Analyzing Coral…</Text>
+            <Text style={styles.analyzingSubtitle}>
+              Running CLAHE · YOLO · EfficientNet{"\n"}This may take up to 30
+              seconds
+            </Text>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF",
-  },
+  screen: { flex: 1, backgroundColor: "#fff" },
+  centred: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingTitle: {
-    marginTop: 16, fontSize: 16, fontWeight: "600", color: "#333",
-  },
-  loadingSubtitle: {
-    marginTop: 6, fontSize: 13, color: "#aaa",
-  },
-  mainContainer: { flex: 1, backgroundColor: "#FFFFFF" },
-  container: { flex: 1, alignItems: "center", paddingTop: 20 },
-  sectionSubtitle: {
-    fontSize: 18,
+    marginTop: 14,
+    fontSize: 16,
     fontWeight: "600",
-    alignSelf: "flex-start",
-    marginBottom: 20,
-    marginTop: 10,
-    color: colors.textSecondary,
+    color: "#333",
   },
+  loadingSubtitle: { marginTop: 6, fontSize: 13, color: "#aaa" },
+
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 30,
+    marginBottom: 20,
+    marginTop: 8,
   },
   statCard: {
     backgroundColor: colors.card,
     width: "48%",
-    padding: 15,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 18,
     alignItems: "center",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 3,
   },
   statValue: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#000",
+    color: "#1a1a2e",
     marginTop: 8,
     textAlign: "center",
   },
-  statLabel: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  uploadBox: {
-    width: "100%",
-    height: 180,
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+    textAlign: "center",
+  },
+
+  heroCard: {
     backgroundColor: colors.card,
-    borderRadius: 25,
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+    marginBottom: 18,
+    borderStyle: "dashed",
+    borderWidth: 1.5,
+    borderColor: "#5D81B4",
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1a1a2e",
+    marginTop: 12,
+  },
+  heroSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 6,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+
+  btnRow: { flexDirection: "row", gap: 12, marginTop: 22, width: "100%" },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: "#5D81B4",
+    paddingVertical: 13,
+    borderRadius: 14,
+  },
+  actionBtnOutline: {
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#5D81B4",
+  },
+  actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  btnDisabled: { opacity: 0.5 },
+
+  historyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#5D81B4",
+    padding: 16,
+    borderRadius: 14,
+  },
+  historyBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.92)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 30,
-    borderStyle: "dashed",
-    borderWidth: 1,
-    borderColor: colors.primary,
+    zIndex: 99,
   },
-  uploadBoxDisabled: { opacity: 0.6 },
-  uploadText: { marginTop: 10, color: colors.textSecondary, fontWeight: "500", fontSize: 16 },
-  uploadSubText: { marginTop: 4, color: "#aaa", fontSize: 12 },
-  primaryBtn: {
-    backgroundColor: "#5D81B4",
-    width: "100%",
-    padding: 18,
-    borderRadius: 15,
-    marginBottom: 15,
+  loadingCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 36,
     alignItems: "center",
-    elevation: 3,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    width: "80%",
   },
-  btnText: { color: "white", fontWeight: "bold", fontSize: 16 },
+  analyzingTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1a1a2e",
+    marginTop: 18,
+  },
+  analyzingSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: "center",
+    lineHeight: 20,
+  },
 });
