@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnalyzedCoral } from "../src/api/growthApi";
+import { ImageCoords } from "../src/screens/MediaUploadScreen";
 import BottomTab from "../src/components/BottomTab";
 import Header from "../src/components/Header";
 import { useAuth } from "../src/context/AuthContext";
@@ -34,6 +35,7 @@ export default function Home() {
   const [imageSizeData, setImageSizeData] = useState<[number, number] | undefined>();
   const [selectedCoralId, setSelectedCoralId] = useState<string>("");
   const [savedCoralIds, setSavedCoralIds] = useState<Record<string, string>>({});
+  const [imageCoords, setImageCoords] = useState<ImageCoords | null>(null);
 
   const renderContent = () => {
     // Tab 0: GIS Nursery Planning
@@ -78,6 +80,7 @@ export default function Home() {
               enhancedImage={enhancedImageBase64}
               imageSize={imageSizeData}
               savedCoralIds={savedCoralIds}
+              imageCoords={imageCoords}
               onCoralSaved={(tempId, userCoralId) =>
                 setSavedCoralIds((prev) => ({ ...prev, [tempId]: userCoralId }))
               }
@@ -121,12 +124,13 @@ export default function Home() {
         default:
           return (
             <MediaUploadScreen
-              onBrowse={(result, imageUri) => {
+              onBrowse={(result, imageUri, coords) => {
                 setAnalyzeResults(result.corals);
                 setAnalyzedImageUri(imageUri);
                 setAnnotatedImageBase64(result.annotatedImage);
                 setEnhancedImageBase64(result.enhancedImage);
                 setImageSizeData(result.imageSize);
+                setImageCoords(coords);
                 setSavedCoralIds({});
                 setCurrentView("IDENTIFICATION_RESULTS");
               }}

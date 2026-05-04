@@ -54,6 +54,10 @@ export interface CoralRecord {
   cnn_feed_image?: string;
   recorded_at: string;
   growth_cm2?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  remarks?: string | null;
+  image_url?: string | null;
 }
 
 export interface CoralSummary {
@@ -138,6 +142,9 @@ export async function saveGrowthRecord(
     confidence?: number;
     cnn_feed_image?: string;
     nursery_id?: number;
+    latitude?: number | null;
+    longitude?: number | null;
+    remarks?: string | null;
   },
   token: string,
   locationId: number,

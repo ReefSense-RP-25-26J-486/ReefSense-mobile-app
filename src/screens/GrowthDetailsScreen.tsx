@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -200,6 +201,14 @@ export default function GrowthDetailsScreen({
                 <Text style={styles.coralIdLabel}>CORAL ID</Text>
                 <Text style={styles.coralIdValue}>{coralId}</Text>
                 <Text style={styles.speciesName}>{latest.species}</Text>
+                {latest.latitude != null && latest.longitude != null && (
+                  <View style={styles.coordsRow}>
+                    <MaterialIcons name="location-on" size={12} color={colors.textSecondary} />
+                    <Text style={styles.coordsText}>
+                      {latest.latitude.toFixed(5)}, {latest.longitude.toFixed(5)}
+                    </Text>
+                  </View>
+                )}
               </View>
               <View style={[styles.stagePill, { backgroundColor: stage!.bg }]}>
                 <Text style={[styles.stagePillText, { color: stage!.color }]}>
@@ -207,6 +216,24 @@ export default function GrowthDetailsScreen({
                 </Text>
               </View>
             </View>
+
+            {/* ── Coral Image ── */}
+            {latest.image_url ? (
+              <View style={styles.coralImageCard}>
+                <Image
+                  source={{ uri: latest.image_url }}
+                  style={styles.coralImage}
+                  resizeMode="cover"
+                />
+                {latest.remarks ? (
+                  <Text style={styles.remarksText}>{latest.remarks}</Text>
+                ) : null}
+              </View>
+            ) : latest.remarks ? (
+              <View style={styles.remarksCard}>
+                <Text style={styles.remarksText}>{latest.remarks}</Text>
+              </View>
+            ) : null}
 
             {/* ── Current Area ── */}
             <View style={styles.areaCard}>
@@ -428,6 +455,27 @@ const styles = StyleSheet.create({
   },
   coralIdValue: { fontSize: 20, fontWeight: "800", color: "#1a1a2e" },
   speciesName: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
+  coordsRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 5 },
+  coordsText: { fontSize: 11, color: colors.textSecondary },
+  coralImageCard: {
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 14,
+    backgroundColor: "#ddd",
+  },
+  coralImage: { width: "100%", height: 220 },
+  remarksCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  remarksText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    padding: 10,
+  },
   stagePill: {
     paddingHorizontal: 12,
     paddingVertical: 6,

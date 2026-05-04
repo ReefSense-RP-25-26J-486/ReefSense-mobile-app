@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,8 +19,17 @@ import { Text } from "../components/AppText";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
 
+export interface ImageCoords {
+  latitude: number;
+  longitude: number;
+}
+
 interface MediaUploadScreenProps {
-  onBrowse: (result: AnalyzeResult, imageUri: string) => void;
+  onBrowse: (
+    result: AnalyzeResult,
+    imageUri: string,
+    coords: ImageCoords | null,
+  ) => void;
   onHistory: () => void;
 }
 
@@ -54,7 +64,104 @@ export default function MediaUploadScreen({
       .finally(() => setDataLoading(false));
   }, []);
 
-  const runAnalysis = async (imageUri: string) => {
+  const getCoordsForAsset = async (
+    assetId: string | undefined | null,
+    exif: any,
+  ): Promise<ImageCoords | null> => {
+    // ── 1. Media library lookup ──────────────────────────────────────────────
+    // expo-image-picker returns assetId as a full content URI on Android, e.g.
+    // "content://media/external/images/media/1234". MediaLibrary.getAssetInfoAsync
+    // needs just the numeric tail "1234", so we extract it.
+    if (assetId) {
+      try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === "granted") {
+          // Android assetId is either already a plain numeric string "1234"
+          // or a full content URI "content://media/external/images/media/1234".
+          // Try plain numeric tail first, then the raw assetId as fallback.
+          const numericId = assetId.split("/").pop()!;
+          const idsToTry =
+            numericId !== assetId ? [numericId, assetId] : [assetId];
+
+          for (const id of idsToTry) {
+            try {
+              console.log("[Coords] trying MediaLibrary id:", id);
+              const info = await MediaLibrary.getAssetInfoAsync(id);
+              console.log(
+                "[Coords] MediaLibrary location:",
+                JSON.stringify(info.location),
+              );
+              const loc = info.location;
+              if (loc && (loc.latitude !== 0 || loc.longitude !== 0)) {
+                return { latitude: loc.latitude, longitude: loc.longitude };
+              }
+              break; // found the asset but no location — no point trying next id
+            } catch {
+              // id format not accepted, try next
+            }
+          }
+        }
+      } catch (e: any) {
+        console.log("[Coords] MediaLibrary error:", e?.message);
+      }
+    }
+
+    // ── 2. Raw EXIF fallback
+    console.log("[Coords] EXIF keys:", exif ? Object.keys(exif) : "no exif");
+
+    if (!exif) return null;
+
+    // iOS: GPS block keyed as "{GPS}"
+    const gpsBlock = exif["{GPS}"];
+    if (gpsBlock) {
+      console.log("[Coords] iOS GPS block:", JSON.stringify(gpsBlock));
+      const lat = parseFloat(gpsBlock.Latitude ?? gpsBlock.GPSLatitude);
+      const lon = parseFloat(gpsBlock.Longitude ?? gpsBlock.GPSLongitude);
+      const latRef: string =
+        gpsBlock.LatitudeRef ?? gpsBlock.GPSLatitudeRef ?? "N";
+      const lonRef: string =
+        gpsBlock.LongitudeRef ?? gpsBlock.GPSLongitudeRef ?? "E";
+      if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+        return {
+          latitude: latRef.toUpperCase() === "S" ? -lat : lat,
+          longitude: lonRef.toUpperCase() === "W" ? -lon : lon,
+        };
+      }
+    }
+
+    // Android: flat EXIF — decimal degrees or DMS fraction strings "37/1,30/1,45/100"
+    const rawLat = exif.GPSLatitude ?? exif.Latitude;
+    const rawLon = exif.GPSLongitude ?? exif.Longitude;
+    console.log("[Coords] Android flat EXIF lat/lon:", rawLat, rawLon);
+
+    if (rawLat != null && rawLon != null) {
+      const parseDMS = (val: any): number => {
+        if (typeof val === "number") return val;
+        const parts = String(val)
+          .split(",")
+          .map((p) => {
+            const [num, den] = p.trim().split("/");
+            return parseFloat(num) / (parseFloat(den) || 1);
+          });
+        return (parts[0] ?? 0) + (parts[1] ?? 0) / 60 + (parts[2] ?? 0) / 3600;
+      };
+      const lat = parseDMS(rawLat);
+      const lon = parseDMS(rawLon);
+      const latRef: string = exif.GPSLatitudeRef ?? "N";
+      const lonRef: string = exif.GPSLongitudeRef ?? "E";
+      if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+        return {
+          latitude: latRef.toUpperCase() === "S" ? -lat : lat,
+          longitude: lonRef.toUpperCase() === "W" ? -lon : lon,
+        };
+      }
+    }
+
+    console.log("[Coords] no coordinates found in this image");
+    return null;
+  };
+
+  const runAnalysis = async (imageUri: string, coords: ImageCoords | null) => {
     setLoading(true);
     try {
       const result = await analyzeImage(imageUri, token!, selectedLocation!.id);
@@ -65,7 +172,7 @@ export default function MediaUploadScreen({
         );
         return;
       }
-      onBrowse(result, imageUri);
+      onBrowse(result, imageUri, coords);
     } catch (err: any) {
       Alert.alert(
         "Analysis Failed",
@@ -85,9 +192,15 @@ export default function MediaUploadScreen({
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       quality: 0.8,
+      exif: true,
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
-    await runAnalysis(result.assets[0].uri);
+    const asset = result.assets[0];
+    const coords = await getCoordsForAsset(
+      asset.assetId ?? undefined,
+      asset.exif,
+    );
+    await runAnalysis(asset.uri, coords);
   };
 
   const handleGallery = async () => {
@@ -96,13 +209,25 @@ export default function MediaUploadScreen({
       Alert.alert("Permission Required", "Please allow photo library access.");
       return;
     }
+    // allowsEditing is intentionally omitted for gallery picks.
+    // When it is enabled, Android creates a cropped temp file that has no
+    // MediaStore assetId, so the location lookup always returns null.
+    // The full original image is needed for assetId-based location lookup.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
+      quality: 1.0,
+      exif: true,
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
-    await runAnalysis(result.assets[0].uri);
+    const asset = result.assets[0];
+    const coords = await getCoordsForAsset(
+      asset.assetId ?? undefined,
+      asset.exif,
+    );
+    await runAnalysis(asset.uri, coords);
+
+    console.log("ASSET:", asset);
+    console.log("EXIF:", asset.exif);
   };
 
   if (dataLoading) {

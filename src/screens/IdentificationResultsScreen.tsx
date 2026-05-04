@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { AnalyzedCoral, saveGrowthRecord } from "../api/growthApi";
+import { ImageCoords } from "./MediaUploadScreen";
 import { Text, TextInput } from "../components/AppText";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
@@ -33,6 +34,7 @@ interface Props {
   imageSize?: [number, number];
   savedCoralIds: Record<string, string>;
   presetCoralId?: string;
+  imageCoords?: ImageCoords | null;
   onCoralSaved: (tempId: string, userCoralId: string) => void;
   onTrackGrowth: (coralId: string) => void;
   onBackToUploads: () => void;
@@ -86,6 +88,7 @@ export default function IdentificationResultsScreen({
   imageSize,
   savedCoralIds,
   presetCoralId,
+  imageCoords,
   onCoralSaved,
   onTrackGrowth,
   onBackToUploads,
@@ -105,6 +108,7 @@ export default function IdentificationResultsScreen({
     },
   );
   const [saving, setSaving] = useState(false);
+  const [remarks, setRemarks] = useState("");
 
   const [nurseryOptions, setNurseryOptions] = useState<NurseryOption[]>([]);
   const [selectedNursery, setSelectedNursery] = useState<NurseryOption | null>(
@@ -180,6 +184,9 @@ export default function IdentificationResultsScreen({
             confidence: coral.confidence,
             cnn_feed_image: coral.cnn_feed_image,
             nursery_id: selectedNursery?.id,
+            latitude: imageCoords?.latitude ?? null,
+            longitude: imageCoords?.longitude ?? null,
+            remarks: remarks.trim() || null,
           },
           token!,
           selectedLocation!.id,
@@ -304,6 +311,21 @@ export default function IdentificationResultsScreen({
               </Text>
             )}
           </TouchableOpacity>
+        </View>
+
+        {/* Remarks field */}
+        <View style={styles.remarksRow}>
+          <Text style={styles.nurseryLabel}>Remarks</Text>
+          <TextInput
+            style={styles.remarksInput}
+            placeholder="Observation notes (optional)"
+            placeholderTextColor="#AAA"
+            value={remarks}
+            onChangeText={setRemarks}
+            multiline
+            numberOfLines={2}
+            returnKeyType="done"
+          />
         </View>
 
         {/* Nursery modal */}
@@ -550,6 +572,20 @@ const styles = StyleSheet.create({
   },
   nurseryValue: { fontSize: 14, fontWeight: "700", color: "#1a1a2e" },
   nurseryPlaceholder: { fontSize: 14, color: "#aaa" },
+
+  // Remarks
+  remarksRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 16 },
+  remarksInput: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#1a1a2e",
+    minHeight: 60,
+    textAlignVertical: "top",
+  },
 
   // Modal
   modalOverlay: {
