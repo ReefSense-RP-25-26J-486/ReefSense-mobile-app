@@ -96,7 +96,7 @@ export default function ForecastScreen({ onBack }: { onBack: () => void }) {
         let dailyMaxes = [];
         for (let i = 0; i < rawValues.length; i += 4) {
             const dayValues = rawValues.slice(i, i + 4).map((v: any) => parseFloat(v));
-            const validValues = dayValues.filter(v => !isNaN(v));
+            const validValues = dayValues.filter((v: number) => !isNaN(v));
             if (validValues.length > 0) {
                 dailyMaxes.push(Math.max(...validValues));
             } else {
