@@ -30,7 +30,7 @@ const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.62);
 const TOP_SAFE = 60;
 const PARTIAL_OFFSET = MAP_HEIGHT - TOP_SAFE; // translateY when sheet is "collapsed" (visible top = MAP_HEIGHT)
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS;
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const PORT_CITY_REGION = {
   latitude: 6.92,
@@ -1088,8 +1088,7 @@ export default function NurseryPlanningScreen() {
     const overdueNurseries = nurseries.filter((n) => {
       if (!n.date_placement) return false;
       const days =
-        (now.getTime() - toDate(n.date_placement).getTime()) /
-        86_400_000;
+        (now.getTime() - toDate(n.date_placement).getTime()) / 86_400_000;
       return days > INSPECTION_DAYS;
     });
 
@@ -1112,8 +1111,7 @@ export default function NurseryPlanningScreen() {
         if (!src) return false;
         const nd = toDate(src);
         return (
-          nd.getFullYear() === d.getFullYear() &&
-          nd.getMonth() === d.getMonth()
+          nd.getFullYear() === d.getFullYear() && nd.getMonth() === d.getMonth()
         );
       }).length;
       months.push({ label, count });
@@ -1150,21 +1148,42 @@ export default function NurseryPlanningScreen() {
 
         {/* ── Zone capacity alert ── */}
         {showCapacityAlert && (
-          <View style={[styles.alertBanner, { borderColor: capacityColor + "55", backgroundColor: capacityColor === "#CC3344" ? "#FFF0F2" : "#FFF8F0" }]}>
-            <Ionicons name="warning-outline" size={20} color={capacityColor} style={{ marginTop: 1 }} />
+          <View
+            style={[
+              styles.alertBanner,
+              {
+                borderColor: capacityColor + "55",
+                backgroundColor:
+                  capacityColor === "#CC3344" ? "#FFF0F2" : "#FFF8F0",
+              },
+            ]}
+          >
+            <Ionicons
+              name="warning-outline"
+              size={20}
+              color={capacityColor}
+              style={{ marginTop: 1 }}
+            />
             <View style={{ flex: 1 }}>
               <Text style={[styles.alertTitle, { color: capacityColor }]}>
-                {capacityPct >= 95 ? "Zone at Critical Capacity" : "Zone Nearing Capacity"}
+                {capacityPct >= 95
+                  ? "Zone at Critical Capacity"
+                  : "Zone Nearing Capacity"}
               </Text>
               <Text style={styles.alertBody}>
-                {capacityPct}% of the restoration zone is occupied ({usedArea.toFixed(1)} m² of {Math.round(totalArea).toLocaleString()} m²). Consider finding new candidate sites.
+                {capacityPct}% of the restoration zone is occupied (
+                {usedArea.toFixed(1)} m² of{" "}
+                {Math.round(totalArea).toLocaleString()} m²). Consider finding
+                new candidate sites.
               </Text>
             </View>
             <TouchableOpacity
               style={[styles.alertActionBtn, { borderColor: capacityColor }]}
               onPress={() => setView("SUGGESTED_LOCATIONS")}
             >
-              <Text style={[styles.alertActionText, { color: capacityColor }]}>Find Sites</Text>
+              <Text style={[styles.alertActionText, { color: capacityColor }]}>
+                Find Sites
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1257,7 +1276,9 @@ export default function NurseryPlanningScreen() {
             <View style={styles.insightCardHeader}>
               <Ionicons name="time-outline" size={17} color="#D97624" />
               <Text style={styles.insightCardTitle}>Inspection Overdue</Text>
-              <View style={[styles.insightBadge, { backgroundColor: "#FEF3EA" }]}>
+              <View
+                style={[styles.insightBadge, { backgroundColor: "#FEF3EA" }]}
+              >
                 <Text style={[styles.insightBadgeText, { color: "#D97624" }]}>
                   {overdueNurseries.length}
                 </Text>
@@ -1271,8 +1292,10 @@ export default function NurseryPlanningScreen() {
                 (now.getTime() - toDate(n.date_placement!).getTime()) /
                   86_400_000,
               );
-              const meta =
-                TYPE_META[n.type] ?? { color: PRIMARY, label: n.type };
+              const meta = TYPE_META[n.type] ?? {
+                color: PRIMARY,
+                label: n.type,
+              };
               return (
                 <TouchableOpacity
                   key={n.id}
@@ -1380,11 +1403,13 @@ export default function NurseryPlanningScreen() {
               {months.map((m) => {
                 const barH =
                   m.count > 0
-                    ? Math.max(6, Math.round((m.count / maxMonthCount) * BAR_MAX_H))
+                    ? Math.max(
+                        6,
+                        Math.round((m.count / maxMonthCount) * BAR_MAX_H),
+                      )
                     : 0;
                 const isCurrentMonth =
-                  m.label ===
-                  now.toLocaleString("en-US", { month: "short" });
+                  m.label === now.toLocaleString("en-US", { month: "short" });
                 return (
                   <View key={m.label} style={styles.trendBarCol}>
                     <Text style={styles.trendBarCount}>
@@ -2271,7 +2296,9 @@ export default function NurseryPlanningScreen() {
     const isOverdue = (n: Nursery) => {
       if (!n.date_placement) return false;
       const raw = n.date_placement;
-      const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw);
+      const d = new Date(
+        /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw,
+      );
       return (now.getTime() - d.getTime()) / 86_400_000 > INSPECTION_DAYS;
     };
 
@@ -2310,7 +2337,12 @@ export default function NurseryPlanningScreen() {
         {/* Search bar */}
         {nurseries.length > 0 && (
           <View style={styles.nurserySearchRow}>
-            <Ionicons name="search-outline" size={16} color="#999" style={{ marginRight: 6 }} />
+            <Ionicons
+              name="search-outline"
+              size={16}
+              color="#999"
+              style={{ marginRight: 6 }}
+            />
             <TextInput
               style={styles.nurserySearchInput}
               placeholder="Search by name or date…"
@@ -2322,7 +2354,10 @@ export default function NurseryPlanningScreen() {
               returnKeyType="search"
             />
             {nurserySearch.length > 0 && (
-              <TouchableOpacity onPress={() => setNurserySearch("")} style={{ padding: 4 }}>
+              <TouchableOpacity
+                onPress={() => setNurserySearch("")}
+                style={{ padding: 4 }}
+              >
                 <Ionicons name="close-circle" size={16} color="#999" />
               </TouchableOpacity>
             )}
@@ -2351,16 +2386,29 @@ export default function NurseryPlanningScreen() {
                 onPress={() => openNurseryView(n)}
               >
                 <View
-                  style={[styles.nurseryListDot, { backgroundColor: meta.color }]}
+                  style={[
+                    styles.nurseryListDot,
+                    { backgroundColor: meta.color },
+                  ]}
                 />
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
                     <Text style={styles.nurseryListName}>
                       {getNurseryDisplayName(n)}
                     </Text>
                     {overdue && (
                       <View style={styles.overduePill}>
-                        <Ionicons name="time-outline" size={11} color="#D97624" />
+                        <Ionicons
+                          name="time-outline"
+                          size={11}
+                          color="#D97624"
+                        />
                         <Text style={styles.overduePillText}>Overdue</Text>
                       </View>
                     )}
@@ -2368,7 +2416,9 @@ export default function NurseryPlanningScreen() {
                   <Text style={styles.nurseryListSub}>
                     {meta.label} ·{" "}
                     {n.area_m2 != null ? `${n.area_m2.toFixed(1)} m²` : "--"}
-                    {n.date_placement ? ` · ${formatDate(n.date_placement)}` : ""}
+                    {n.date_placement
+                      ? ` · ${formatDate(n.date_placement)}`
+                      : ""}
                   </Text>
                   {n.coral_species ? (
                     <Text style={styles.nurseryListSpecies}>
@@ -2381,7 +2431,10 @@ export default function NurseryPlanningScreen() {
             );
           })
         )}
-        <TouchableOpacity style={styles.backLink} onPress={() => setView("MAIN")}>
+        <TouchableOpacity
+          style={styles.backLink}
+          onPress={() => setView("MAIN")}
+        >
           <Text style={styles.backLinkText}>← Back</Text>
         </TouchableOpacity>
       </ScrollView>
