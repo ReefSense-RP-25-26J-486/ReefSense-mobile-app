@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "reefsense",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -22,9 +21,10 @@
       "predictiveBackGestureEnabled": false,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyB1Mc8fvVBfFzW_Bte2d2UO-iQAuiFrQAc"
+          "apiKey": "GOOGLE_MAPS_API_KEY"
         }
-      }
+      },
+      "package": "com.reefsense.ReefSense"
     },
     "web": {
       "output": "static",
@@ -44,11 +44,18 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c2e23ecd-709e-4cd8-84fb-0d5617a5be80"
+      }
     }
   }
 }

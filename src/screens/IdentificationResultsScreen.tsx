@@ -1,266 +1,751 @@
-import React, { useState } from "react";
+import { MaterialIcons } from "@expo/vector-icons";
+import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Text, TextInput } from '../components/AppText';
 import { AnalyzedCoral, saveGrowthRecord } from "../api/growthApi";
+import { Text, TextInput } from "../components/AppText";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
+import { ImageCoords } from "./MediaUploadScreen";
 
-interface IdentificationResultsScreenProps {
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS ?? "";
+
+interface NurseryOption {
+  id: number;
+  name: string | null;
+  type: string;
+}
+
+interface Props {
   corals: AnalyzedCoral[];
   imageUri: string;
   annotatedImage: string | null;
+  enhancedImage: string | null;
+  imageSize?: [number, number];
   savedCoralIds: Record<string, string>;
+  presetCoralId?: string;
+  imageCoords?: ImageCoords | null;
   onCoralSaved: (tempId: string, userCoralId: string) => void;
   onTrackGrowth: (coralId: string) => void;
   onBackToUploads: () => void;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function confStyle(conf: number) {
+  console.log("[confStyle] raw confidence value:", conf, typeof conf);
+  if (conf >= 0.8) return { bg: "#85ffa1", color: "#06a42b", label: "High" };
+  if (conf >= 0.5) return { bg: "#fef65e", color: "#c39304", label: "Medium" };
+  return { bg: "#f78992", color: "#b70c1d", label: "Low" };
+}
+
+function getTagPos(
+  coral: AnalyzedCoral,
+  idx: number,
+  total: number,
+  dispW: number,
+  dispH: number,
+  imageSize?: [number, number],
+): { left: number; top: number } {
+  const TAG_HALF = 14;
+  if (dispW === 0 || dispH === 0) return { left: 0, top: 0 };
+
+  if (coral.centroid && imageSize) {
+    const [origW, origH] = imageSize;
+    const [cx, cy] = coral.centroid;
+    return {
+      left: (cx / origW) * dispW - TAG_HALF,
+      top: (cy / origH) * dispH - TAG_HALF,
+    };
+  }
+
+  const cols = total === 1 ? 1 : total <= 4 ? 2 : 3;
+  const rows = Math.ceil(total / cols);
+  const col = idx % cols;
+  const row = Math.floor(idx / cols);
+  return {
+    left: ((col + 0.5) / cols) * dispW - TAG_HALF,
+    top: ((row + 0.5) / rows) * dispH - TAG_HALF,
+  };
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function IdentificationResultsScreen({
   corals,
   imageUri,
   annotatedImage,
+  enhancedImage,
+  imageSize,
   savedCoralIds,
+  presetCoralId,
+  imageCoords,
   onCoralSaved,
   onTrackGrowth,
   onBackToUploads,
-}: IdentificationResultsScreenProps) {
+}: Props) {
   const { token, selectedLocation } = useAuth();
-  // Which temp coral_id is currently being saved
-  const [savingId, setSavingId] = useState<string | null>(null);
-  // User-entered IDs (keyed by temp coral_id from AI)
-  const [coralIdInputs, setCoralIdInputs] = useState<Record<string, string>>({});
+  const scrollRef = useRef<ScrollView>(null);
+  const cardOffsets = useRef<number[]>([]);
+
+  const [highlightedIdx, setHighlightedIdx] = useState<number | null>(null);
+  const [imgLayout, setImgLayout] = useState({ width: 0, height: 0 });
+  const [coralIdInputs, setCoralIdInputs] = useState<Record<string, string>>(
+    () => {
+      if (presetCoralId && corals.length > 0) {
+        return { [corals[0].coral_id]: presetCoralId };
+      }
+      return {};
+    },
+  );
+  const [saving, setSaving] = useState(false);
+  const [remarks, setRemarks] = useState("");
+
+  const [nurseryOptions, setNurseryOptions] = useState<NurseryOption[]>([]);
+  const [selectedNursery, setSelectedNursery] = useState<NurseryOption | null>(
+    null,
+  );
+  const [loadingNurseries, setLoadingNurseries] = useState(false);
+  const [showNurseryModal, setShowNurseryModal] = useState(false);
+
+  useEffect(() => {
+    if (!token || !selectedLocation) return;
+    setLoadingNurseries(true);
+    fetch(`${BASE_URL}/api/gis/nurseries`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Location-ID": String(selectedLocation.id),
+      },
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const list: NurseryOption[] = (d.nurseries ?? []).map((n: any) => ({
+          id: n.id,
+          name: n.name,
+          type: n.type,
+        }));
+        setNurseryOptions(list);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingNurseries(false));
+  }, [token, selectedLocation]);
 
   const isSaved = (tempId: string) => savedCoralIds[tempId] !== undefined;
 
-  const handleSave = async (coral: AnalyzedCoral) => {
-    const userCoralId = (coralIdInputs[coral.coral_id] ?? "").trim().toUpperCase();
-
-    if (!userCoralId) {
-      Alert.alert("Coral ID Required", "Please enter a Coral ID (e.g. CORAL-001) before saving.");
-      return;
-    }
-
-    setSavingId(coral.coral_id);
-    try {
-      await saveGrowthRecord(
-        {
-          coral_id: userCoralId,
-          species: coral.species,
-          area_cm2: coral.area_cm2,
-          confidence: coral.confidence,
-          cnn_feed_image: coral.cnn_feed_image ?? imageUri,
-        },
-        token!,
-        selectedLocation!.id,
-      );
-      // Store the user-provided ID and mark as saved
-      onCoralSaved(coral.coral_id, userCoralId);
-    } catch (err: any) {
-      Alert.alert("Save Failed", err.message ?? "Could not save the record.");
-    } finally {
-      setSavingId(null);
+  const handleTagPress = (idx: number) => {
+    const next = highlightedIdx === idx ? null : idx;
+    setHighlightedIdx(next);
+    if (next !== null && cardOffsets.current[next] !== undefined) {
+      scrollRef.current?.scrollTo({
+        y: cardOffsets.current[next] - 16,
+        animated: true,
+      });
     }
   };
 
-  const displayImageSource = annotatedImage
+  const handleCardPress = (idx: number) => {
+    setHighlightedIdx(highlightedIdx === idx ? null : idx);
+  };
+
+  const handleSaveAll = async () => {
+    const toSave = corals.filter((c) => {
+      const id = (coralIdInputs[c.coral_id] ?? "").trim();
+      return id.length > 0 && !isSaved(c.coral_id);
+    });
+
+    if (toSave.length === 0) {
+      Alert.alert(
+        "Nothing to Save",
+        "Tap a coral tag, enter a Coral ID, then press Save All.",
+      );
+      return;
+    }
+
+    setSaving(true);
+    const errors: string[] = [];
+
+    for (const coral of toSave) {
+      const userCoralId = coralIdInputs[coral.coral_id].trim().toUpperCase();
+      try {
+        await saveGrowthRecord(
+          {
+            coral_id: userCoralId,
+            species: coral.species,
+            area_cm2: coral.area_cm2,
+            confidence: coral.confidence,
+            cnn_feed_image: coral.cnn_feed_image,
+            nursery_id: selectedNursery?.id,
+            latitude: imageCoords?.latitude ?? null,
+            longitude: imageCoords?.longitude ?? null,
+            remarks: remarks.trim() || null,
+          },
+          token!,
+          selectedLocation!.id,
+        );
+        onCoralSaved(coral.coral_id, userCoralId);
+      } catch (err: any) {
+        errors.push(`${coral.species}: ${err.message}`);
+      }
+    }
+
+    setSaving(false);
+    if (errors.length > 0) {
+      Alert.alert("Some Saves Failed", errors.join("\n"));
+    }
+  };
+
+  const displaySrc = annotatedImage
     ? { uri: `data:image/jpeg;base64,${annotatedImage}` }
     : { uri: imageUri };
 
+  const anySaved = Object.keys(savedCoralIds).length > 0;
+
   return (
-    <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
-      <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
-        <Text style={styles.backText}>{"< Return to Overview"}</Text>
-      </TouchableOpacity>
+    // KeyboardAvoidingView ensures the Save bar rises above the keyboard
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+    >
+      {/* Scrollable content */}
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
+        <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
+          <Text style={styles.backText}>{"< Return to Overview"}</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.title}>Identification Results</Text>
+        <Text style={styles.title}>Identification Results</Text>
 
-      {/* Annotated image with coral masks */}
-      <Image
-        source={displayImageSource}
-        style={styles.mainImg}
-        resizeMode="cover"
-      />
+        {/* ── Image with overlaid numbered tags ── */}
+        <View
+          style={styles.imageWrapper}
+          onLayout={(e) =>
+            setImgLayout({
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            })
+          }
+        >
+          <Image
+            source={displaySrc}
+            style={styles.mainImg}
+            resizeMode="cover"
+          />
 
-      {/* Coral count badge */}
-      {corals.length > 0 && (
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryBadge}>
-            <Text style={styles.summaryValue}>{corals.length}</Text>
-            <Text style={styles.summaryLabel}>Coral(s) Found</Text>
+          {imgLayout.width > 0 &&
+            corals.map((coral, idx) => {
+              const pos = getTagPos(
+                coral,
+                idx,
+                corals.length,
+                imgLayout.width,
+                imgLayout.height,
+                imageSize,
+              );
+              const isHL = highlightedIdx === idx;
+              return (
+                <TouchableOpacity
+                  key={coral.coral_id}
+                  style={[
+                    styles.tag,
+                    { left: pos.left, top: pos.top },
+                    isHL && styles.tagHL,
+                  ]}
+                  onPress={() => handleTagPress(idx)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.tagText, isHL && styles.tagTextHL]}>
+                    #{idx + 1}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+        </View>
+
+        {/* Detection count badge */}
+        <View style={styles.countRow}>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>
+              {corals.length} Coral{corals.length !== 1 ? "s" : ""} Detected
+            </Text>
           </View>
         </View>
-      )}
 
-      <Text style={styles.subtitle}>Identified Corals</Text>
-
-      {corals.map((coral) => {
-        const saved = isSaved(coral.coral_id);
-        const saving = savingId === coral.coral_id;
-
-        return (
-          <View key={coral.coral_id} style={styles.card}>
-            {/* Avatar */}
-            <View style={styles.avatarBox}>
-              <Text style={styles.avatarText}>
-                {coral.species.charAt(0).toUpperCase()}
+        {/* Nursery picker (optional) */}
+        <View style={styles.nurseryRow}>
+          <Text style={styles.nurseryLabel}>Nursery</Text>
+          <TouchableOpacity
+            style={styles.nurseryField}
+            onPress={() =>
+              nurseryOptions.length > 0 && setShowNurseryModal(true)
+            }
+          >
+            {loadingNurseries ? (
+              <ActivityIndicator size="small" color="#5D81B4" />
+            ) : nurseryOptions.length === 0 ? (
+              <Text style={styles.nurseryPlaceholder}>No nurseries</Text>
+            ) : (
+              <Text
+                style={
+                  selectedNursery
+                    ? styles.nurseryValue
+                    : styles.nurseryPlaceholder
+                }
+              >
+                {selectedNursery
+                  ? (selectedNursery.name ?? selectedNursery.type)
+                  : "Select nursery (optional)"}
               </Text>
-            </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
-            <View style={styles.info}>
-              <Text style={styles.name}>{coral.species}</Text>
-              <Text style={styles.meta}>
-                Area: <Text style={styles.metaVal}>{coral.area_cm2.toFixed(2)} cm²</Text>
-              </Text>
+        {/* Remarks field */}
+        <View style={styles.remarksRow}>
+          <Text style={styles.nurseryLabel}>Remarks</Text>
+          <TextInput
+            style={styles.remarksInput}
+            placeholder="Observation notes (optional)"
+            placeholderTextColor="#AAA"
+            value={remarks}
+            onChangeText={setRemarks}
+            multiline
+            numberOfLines={2}
+            returnKeyType="done"
+          />
+        </View>
 
-              {saved ? (
-                /* ── After save: show saved ID label + Track Growth button ── */
-                <>
-                  <View style={styles.savedIdRow}>
-                    <Text style={styles.savedIdLabel}>ID: </Text>
-                    <Text style={styles.savedIdValue}>{savedCoralIds[coral.coral_id]}</Text>
-                    <View style={styles.savedBadge}>
-                      <Text style={styles.savedBadgeText}>✓ Saved</Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.trackBtn}
-                    onPress={() => onTrackGrowth(savedCoralIds[coral.coral_id])}
+        {/* Nursery modal */}
+        <Modal visible={showNurseryModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Select Nursery</Text>
+              {nurseryOptions.map((n) => (
+                <TouchableOpacity
+                  key={n.id}
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedNursery(n);
+                    setShowNurseryModal(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalItemText,
+                      selectedNursery?.id === n.id && styles.modalItemSelected,
+                    ]}
                   >
-                    <Text style={styles.btnText}>Track Growth</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                /* ── Before save: show ID input + Save button ── */
-                <>
-                  <TextInput
-                    style={styles.idInput}
-                    placeholder="Enter Coral ID (e.g. CORAL-001)"
-                    placeholderTextColor="#AAA"
-                    autoCapitalize="characters"
-                    returnKeyType="done"
-                    value={coralIdInputs[coral.coral_id] ?? ""}
-                    onChangeText={(text) =>
-                      setCoralIdInputs((prev) => ({ ...prev, [coral.coral_id]: text }))
-                    }
-                  />
-
-                  <TouchableOpacity
-                    style={[styles.saveBtn, saving && styles.btnDisabled]}
-                    onPress={() => handleSave(coral)}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <ActivityIndicator color="white" size="small" />
-                    ) : (
-                      <Text style={styles.btnText}>Save</Text>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
+                    {n.name ?? n.type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={() => setShowNurseryModal(false)}
+                style={styles.modalCancel}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        );
-      })}
+        </Modal>
 
-      <View style={{ height: 100 }} />
-    </ScrollView>
+        <Text style={styles.sectionLabel}>Detected Corals</Text>
+        <Text style={styles.sectionHint}>
+          Tap a tag on the image or a card below to assign a Coral ID
+        </Text>
+
+        {/* ── Coral cards ── */}
+        {corals.map((coral, idx) => {
+          const saved = isSaved(coral.coral_id);
+          const isHL = highlightedIdx === idx;
+          const cs = confStyle(coral.confidence);
+
+          return (
+            <View
+              key={coral.coral_id}
+              onLayout={(e) => {
+                cardOffsets.current[idx] = e.nativeEvent.layout.y;
+              }}
+            >
+              <TouchableOpacity
+                style={[styles.card, isHL && styles.cardHL]}
+                onPress={() => handleCardPress(idx)}
+                activeOpacity={0.85}
+              >
+                {/* Card header row */}
+                <View style={styles.cardHeader}>
+                  <View style={[styles.tagMini, isHL && styles.tagMiniHL]}>
+                    <Text
+                      style={[styles.tagMiniText, isHL && { color: "#fff" }]}
+                    >
+                      #{idx + 1}
+                    </Text>
+                  </View>
+                  <Text style={styles.speciesName} numberOfLines={1}>
+                    {coral.species}
+                  </Text>
+                  <View style={[styles.confBadge, { backgroundColor: cs.bg }]}>
+                    <Text style={[styles.confLabel, { color: cs.color }]}>
+                      {cs.label} (
+                      {typeof coral.confidence === "number"
+                        ? coral.confidence.toFixed(2)
+                        : coral.confidence}
+                      )
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.areaText}>
+                  {coral.area_cm2.toFixed(2)} cm²
+                </Text>
+
+                {/* Expanded: ID input — only when highlighted and not yet saved */}
+                {isHL && !saved && (
+                  <View style={styles.expandedSection}>
+                    <Text style={styles.inputLabel}>
+                      Coral ID (optional — required to track)
+                    </Text>
+                    <TextInput
+                      style={styles.idInput}
+                      placeholder="e.g. GP-Acropora-001"
+                      placeholderTextColor="#AAA"
+                      autoCapitalize="characters"
+                      returnKeyType="done"
+                      value={coralIdInputs[coral.coral_id] ?? ""}
+                      onChangeText={(t) =>
+                        setCoralIdInputs((prev) => ({
+                          ...prev,
+                          [coral.coral_id]: t,
+                        }))
+                      }
+                      onFocus={() => {
+                        // Scroll to this card when focused so it stays visible above keyboard
+                        if (cardOffsets.current[idx] !== undefined) {
+                          scrollRef.current?.scrollTo({
+                            y: cardOffsets.current[idx] - 16,
+                            animated: true,
+                          });
+                        }
+                      }}
+                    />
+                    <Text style={styles.scenarioHint}>
+                      Leave blank to identify only (no tracking)
+                    </Text>
+                  </View>
+                )}
+
+                {/* Saved state */}
+                {saved && (
+                  <View style={styles.savedRow}>
+                    <View style={styles.savedBadge}>
+                      <MaterialIcons
+                        name="check-circle"
+                        size={14}
+                        color="#155724"
+                      />
+                      <Text style={styles.savedBadgeText}>
+                        Saved as {savedCoralIds[coral.coral_id]}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() =>
+                        onTrackGrowth(savedCoralIds[coral.coral_id])
+                      }
+                    >
+                      <Text style={styles.viewGrowthLink}>View Growth →</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+
+        {anySaved && (
+          <View style={styles.allSavedNote}>
+            <MaterialIcons name="info-outline" size={14} color="#5D81B4" />
+            <Text style={styles.allSavedText}>
+              Tap "View Growth →" on any saved coral to open its growth tracker.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Save bar — in normal flow so it stays above keyboard and nav bar ── */}
+      <View style={styles.saveBar}>
+        <TouchableOpacity
+          style={[styles.saveAllBtn, saving && styles.btnDisabled]}
+          onPress={handleSaveAll}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <MaterialIcons name="save" size={18} color="#fff" />
+              <Text style={styles.saveAllText}>Save All</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+      {/* Spacer to clear the absolutely-positioned BottomTab (~110px tall) */}
+      <View style={{ height: 110 }} />
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FFFFFF" },
-  backLink: { marginBottom: 10, paddingVertical: 5 },
-  backText: { color: "#517AAD", fontWeight: "bold", fontSize: 16, marginTop: 8 },
-  title: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
-  mainImg: { width: "100%", height: 220, borderRadius: 10, marginBottom: 20 },
-  summaryRow: { flexDirection: "row", justifyContent: "center", marginBottom: 20 },
-  summaryBadge: {
-    backgroundColor: "#BDD0E7",
-    paddingVertical: 12,
-    paddingHorizontal: 36,
+  screen: { flex: 1, backgroundColor: "#fff" },
+
+  backLink: { paddingVertical: 5, marginBottom: 6 },
+  backText: {
+    color: "#517AAD",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginTop: 8,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 14,
+    color: "#1a1a2e",
+  },
+
+  // Image + tag overlay — taller for better coral visibility
+  imageWrapper: {
+    width: "100%",
+    height: 300,
     borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 14,
+    backgroundColor: "#ddd",
+  },
+  mainImg: { width: "100%", height: "100%" },
+  tag: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(93,129,180,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  tagHL: { backgroundColor: "#1a1a2e", borderColor: "#FFD700", borderWidth: 2 },
+  tagText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  tagTextHL: { color: "#FFD700" },
+
+  // Count badge
+  countRow: { flexDirection: "row", marginBottom: 14 },
+  countBadge: {
+    backgroundColor: "#BDD0E7",
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  countText: { fontWeight: "700", color: "#1a1a2e", fontSize: 13 },
+
+  // Nursery picker
+  nurseryRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  nurseryLabel: {
+    width: 70,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  nurseryField: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  nurseryValue: { fontSize: 14, fontWeight: "700", color: "#1a1a2e" },
+  nurseryPlaceholder: { fontSize: 14, color: "#aaa" },
+
+  // Remarks
+  remarksRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  remarksInput: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#1a1a2e",
+    minHeight: 60,
+    textAlignVertical: "top",
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  summaryValue: { fontSize: 20, fontWeight: "bold", color: "#1a1a2e" },
-  summaryLabel: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  subtitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
-  card: {
-    flexDirection: "row",
-    backgroundColor: colors.card,
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 15,
-    alignItems: "flex-start",
+  modalCard: {
+    width: "82%",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
   },
-  avatarBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  modalTitle: { fontWeight: "800", fontSize: 16, marginBottom: 12 },
+  modalItem: {
+    paddingVertical: 13,
+    width: "100%",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF4FF",
+  },
+  modalItemText: { fontSize: 15, color: "#333", fontWeight: "600" },
+  modalItemSelected: { color: "#5D81B4", fontWeight: "800" },
+  modalCancel: { marginTop: 12, paddingVertical: 8 },
+  modalCancelText: { color: "#5D81B4", fontWeight: "700" },
+
+  // Section labels
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1a1a2e",
+    marginBottom: 4,
+  },
+  sectionHint: { fontSize: 12, color: colors.textSecondary, marginBottom: 14 },
+
+  // Coral card
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  cardHL: { borderColor: "#5D81B4", backgroundColor: "#EEF4FF" },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  tagMini: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: "#BDD0E7",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 4,
   },
-  avatarText: { fontSize: 22, fontWeight: "bold", color: "#5D81B4" },
-  info: { flex: 1, marginLeft: 15 },
-  name: { fontSize: 16, fontWeight: "700", marginBottom: 4, color: "#1a1a2e" },
-  meta: { fontSize: 13, color: colors.textSecondary, marginBottom: 8 },
-  metaVal: { fontWeight: "600", color: "#1a1a2e" },
+  tagMiniHL: { backgroundColor: "#5D81B4" },
+  tagMiniText: { fontSize: 11, fontWeight: "800", color: "#5D81B4" },
+  speciesName: { flex: 1, fontSize: 15, fontWeight: "700", color: "#1a1a2e" },
+  confBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  confLabel: { fontSize: 11, fontWeight: "700" },
+  areaText: { fontSize: 13, color: colors.textSecondary, marginLeft: 34 },
+
+  // Expanded ID input
+  expandedSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+  },
+  inputLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 6,
+    fontWeight: "600",
+  },
   idInput: {
     borderWidth: 1.5,
     borderColor: "#5D81B4",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
     fontSize: 14,
     color: "#1a1a2e",
     backgroundColor: "#F8FAFF",
-    marginBottom: 10,
     letterSpacing: 0.5,
   },
-  saveBtn: {
-    backgroundColor: "#5D81B4",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-    alignSelf: "flex-start",
-    minWidth: 80,
-    alignItems: "center",
+  scenarioHint: {
+    fontSize: 11,
+    color: "#aaa",
+    marginTop: 5,
+    fontStyle: "italic",
   },
-  trackBtn: {
-    backgroundColor: "#2E7D52",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-    alignSelf: "flex-start",
-    minWidth: 110,
-    alignItems: "center",
-  },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: "white", fontWeight: "600" },
-  savedIdRow: {
+
+  // Saved state
+  savedRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
-    flexWrap: "wrap",
-    gap: 6,
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
   },
-  savedIdLabel: { fontSize: 13, color: colors.textSecondary },
-  savedIdValue: { fontSize: 14, fontWeight: "700", color: "#1a1a2e" },
   savedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     backgroundColor: "#d4edda",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
   },
-  savedBadgeText: { fontSize: 11, color: "#155724", fontWeight: "600" },
+  savedBadgeText: { fontSize: 12, color: "#155724", fontWeight: "600" },
+  viewGrowthLink: { fontSize: 13, color: "#5D81B4", fontWeight: "700" },
+
+  allSavedNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EEF4FF",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  allSavedText: { flex: 1, fontSize: 12, color: "#5D81B4", lineHeight: 18 },
+
+  // Save bar — normal flow, not absolute
+  saveBar: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#e8e8e8",
+  },
+  saveAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#5D81B4",
+    paddingVertical: 15,
+    borderRadius: 14,
+  },
+  saveAllText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  btnDisabled: { opacity: 0.55 },
 });
