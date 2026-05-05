@@ -153,6 +153,14 @@ export default function RegisterScreen() {
       setError("Password must be at least 8 characters.");
       return;
     }
+    if (!/[a-zA-Z]/.test(password)) {
+      setError("Password must contain at least one letter.");
+      return;
+    }
+    if (!/[0-9!@#$%^&*()\-_=+[\]{};':",.<>/?\\|`~]/.test(password)) {
+      setError("Password must contain at least one number or special character.");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -407,7 +415,7 @@ export default function RegisterScreen() {
                 />
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 8 chars, letter + number/symbol"
                   placeholderTextColor="#A0B4D0"
                   secureTextEntry={!showPw}
                   value={password}
@@ -423,6 +431,38 @@ export default function RegisterScreen() {
                     color="#517AAD"
                   />
                 </TouchableOpacity>
+              </View>
+              <View style={styles.pwHints}>
+                <View style={styles.pwHintItem}>
+                  <Ionicons
+                    name={password.length >= 8 ? "checkmark-circle" : "ellipse-outline"}
+                    size={13}
+                    color={password.length >= 8 ? "#27975A" : "#A0B4D0"}
+                  />
+                  <Text style={[styles.pwHintText, password.length >= 8 && styles.pwHintMet]}>
+                    At least 8 characters
+                  </Text>
+                </View>
+                <View style={styles.pwHintItem}>
+                  <Ionicons
+                    name={/[a-zA-Z]/.test(password) ? "checkmark-circle" : "ellipse-outline"}
+                    size={13}
+                    color={/[a-zA-Z]/.test(password) ? "#27975A" : "#A0B4D0"}
+                  />
+                  <Text style={[styles.pwHintText, /[a-zA-Z]/.test(password) && styles.pwHintMet]}>
+                    At least one letter
+                  </Text>
+                </View>
+                <View style={styles.pwHintItem}>
+                  <Ionicons
+                    name={/[0-9!@#$%^&*()\-_=+[\]{};':",.<>/?\\|`~]/.test(password) ? "checkmark-circle" : "ellipse-outline"}
+                    size={13}
+                    color={/[0-9!@#$%^&*()\-_=+[\]{};':",.<>/?\\|`~]/.test(password) ? "#27975A" : "#A0B4D0"}
+                  />
+                  <Text style={[styles.pwHintText, /[0-9!@#$%^&*()\-_=+[\]{};':",.<>/?\\|`~]/.test(password) && styles.pwHintMet]}>
+                    At least one number or symbol
+                  </Text>
+                </View>
               </View>
 
               <Text style={styles.label}>Confirm Password</Text>
@@ -700,6 +740,11 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: 8 },
   input: { flex: 1, fontSize: 15, color: "#1A2B3C" },
   eyeBtn: { padding: 4 },
+
+  pwHints: { marginTop: 8, gap: 4 },
+  pwHintItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  pwHintText: { fontSize: 12, color: "#A0B4D0" },
+  pwHintMet: { color: "#27975A" },
 
   btn: {
     backgroundColor: "#517AAD",

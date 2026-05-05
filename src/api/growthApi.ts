@@ -45,6 +45,9 @@ export interface AnalyzeResult {
   enhancedImage: string | null;
   /** [width, height] of original image — returned by updated HF app */
   imageSize?: [number, number];
+  /** GPS extracted server-side from JPEG EXIF — reliable on all platforms */
+  imageLatitude: number | null;
+  imageLongitude: number | null;
 }
 
 export interface AnalyzeResponse {
@@ -59,6 +62,9 @@ export interface AnalyzeResponse {
   area_cm2?: number;
   confidence?: number;
   cnn_feed_image?: string;
+  /** GPS extracted server-side from JPEG EXIF */
+  image_latitude?: number | null;
+  image_longitude?: number | null;
 }
 
 export interface CoralRecord {
@@ -150,6 +156,8 @@ export async function analyzeImage(
     annotatedImage: data.annotated_image ?? null,
     enhancedImage: data.enhanced_image ?? null,
     imageSize: Array.isArray(data.image_size) ? data.image_size : undefined,
+    imageLatitude: data.image_latitude != null ? Number(data.image_latitude) : null,
+    imageLongitude: data.image_longitude != null ? Number(data.image_longitude) : null,
   };
 }
 

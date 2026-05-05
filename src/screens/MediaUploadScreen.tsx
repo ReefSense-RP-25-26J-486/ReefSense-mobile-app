@@ -1,10 +1,12 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import * as MediaLibrary from "expo-media-library";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -40,14 +42,16 @@ export default function MediaUploadScreen({
   const { token, selectedLocation } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [totalObservations, setTotalObservations] = useState<number | null>(
     null,
   );
   const [lastSpecies, setLastSpecies] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadSummaries = useCallback((isPullRefresh = false) => {
     if (!token || !selectedLocation) return;
-    setDataLoading(true);
+    if (isPullRefresh) setRefreshing(true);
+    else setDataLoading(true);
     getAllCoralSummaries(token, selectedLocation.id)
       .then((corals) => {
         setTotalObservations(corals.reduce((s, c) => s + c.record_count, 0));
@@ -61,8 +65,13 @@ export default function MediaUploadScreen({
         }
       })
       .catch(() => {})
-      .finally(() => setDataLoading(false));
-  }, []);
+      .finally(() => { setDataLoading(false); setRefreshing(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedLocation]);
+
+  useEffect(() => {
+    loadSummaries();
+  }, [loadSummaries]);
 
   const getCoordsForAsset = async (
     assetId: string | undefined | null,
@@ -189,6 +198,28 @@ export default function MediaUploadScreen({
       Alert.alert("Permission Required", "Please allow camera access.");
       return;
     }
+
+    // Request location permission proactively — we'll tag the photo with device GPS.
+    // On Android, launchCameraAsync with allowsEditing=true runs UCrop which strips
+    // EXIF (including GPS) from the result, so EXIF-based extraction always fails.
+    // Getting location from the device directly is the reliable approach for camera.
+    let deviceCoords: ImageCoords | null = null;
+    try {
+      const locPerm = await Location.requestForegroundPermissionsAsync();
+      if (locPerm.status === "granted") {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        deviceCoords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        };
+        console.log("[Camera] device GPS:", deviceCoords);
+      }
+    } catch (e) {
+      console.log("[Camera] could not get device location:", e);
+    }
+
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       quality: 0.8,
@@ -196,7 +227,10 @@ export default function MediaUploadScreen({
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
     const asset = result.assets[0];
-    const coords = await getCoordsForAsset(
+
+    // Use device GPS first (always accurate for camera); fall back to EXIF for
+    // cases where location permission was denied.
+    const coords = deviceCoords ?? await getCoordsForAsset(
       asset.assetId ?? undefined,
       asset.exif,
     );
@@ -244,7 +278,18 @@ export default function MediaUploadScreen({
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.screen}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadSummaries(true)}
+            colors={["#5D81B4"]}
+            tintColor="#5D81B4"
+          />
+        }
+      >
         {/* Stats row */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>

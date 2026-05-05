@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -16,6 +17,7 @@ import {
 import { Text, TextInput } from "../components/AppText";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
+import { exportToCsv } from "../utils/exportCsv";
 
 interface Props {
   onViewDetails: (coralId: string) => void;
@@ -79,6 +81,7 @@ export default function TrackingHistoryScreen({
   const { token, selectedLocation } = useAuth();
   const [corals, setCorals] = useState<CoralSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -89,8 +92,9 @@ export default function TrackingHistoryScreen({
   const [filterStages, setFilterStages] = useState<string[]>([]);
   const [filterDays, setFilterDays] = useState<number | null>(null);
 
-  const fetchSummaries = useCallback(async () => {
-    setLoading(true);
+  const fetchSummaries = useCallback(async (isPullRefresh = false) => {
+    if (isPullRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     try {
       const data = await getAllCoralSummaries(token!, selectedLocation!.id);
@@ -105,12 +109,35 @@ export default function TrackingHistoryScreen({
       setError(err.message ?? "Failed to load tracking history.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [token, selectedLocation]);
 
   useEffect(() => {
     fetchSummaries();
   }, [fetchSummaries]);
+
+  const handleExport = () => {
+    exportToCsv(
+      'coral_growth_history',
+      corals.map((c) => ({
+        coral_id:      c.coral_id,
+        species:       c.species,
+        latest_area:   parseFloat(c.latest_area as unknown as string).toFixed(2),
+        growth_stage:  growthStage(parseFloat(c.latest_area as unknown as string)).label,
+        record_count:  c.record_count,
+        last_recorded: formatDate(c.last_recorded),
+      })),
+      [
+        { key: 'coral_id',      label: 'Coral ID' },
+        { key: 'species',       label: 'Species' },
+        { key: 'latest_area',   label: 'Latest Area (cm²)' },
+        { key: 'growth_stage',  label: 'Growth Stage' },
+        { key: 'record_count',  label: 'Record Count' },
+        { key: 'last_recorded', label: 'Last Recorded' },
+      ],
+    );
+  };
 
   const handleDelete = (coralId: string, count: number) => {
     Alert.alert(
@@ -197,12 +224,31 @@ export default function TrackingHistoryScreen({
   };
 
   return (
-    <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.screen}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => fetchSummaries(true)}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
+    >
       <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
         <Text style={styles.backText}>{"< Return to Overview"}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Growth Tracker</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>Growth Tracker</Text>
+        {!loading && corals.length > 0 && (
+          <TouchableOpacity onPress={handleExport} style={styles.exportBtn}>
+            <MaterialIcons name="file-download" size={20} color={colors.primary} />
+            <Text style={styles.exportBtnText}>Export</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Search + filter toggle row */}
       <View style={styles.searchRow}>
@@ -349,7 +395,7 @@ export default function TrackingHistoryScreen({
       ) : error ? (
         <View style={styles.centred}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={fetchSummaries}>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchSummaries()}>
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -495,12 +541,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 8,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
   title: {
     fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 14,
     color: "#1a1a2e",
   },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EEF4FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  exportBtnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
 
   // Search row
   searchRow: {
