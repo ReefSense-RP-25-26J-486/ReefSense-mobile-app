@@ -16,8 +16,10 @@ import {
   getAllCoralSummaries,
 } from "../api/growthApi";
 import { Text } from "../components/AppText";
+import OfflineBanner from "../components/OfflineBanner";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
+import { useNetworkStatus } from "../hooks/useNetworkStatus";
 
 export interface ImageCoords {
   latitude: number;
@@ -38,6 +40,7 @@ export default function MediaUploadScreen({
   onHistory,
 }: MediaUploadScreenProps) {
   const { token, selectedLocation } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [totalObservations, setTotalObservations] = useState<number | null>(
@@ -244,6 +247,7 @@ export default function MediaUploadScreen({
 
   return (
     <View style={{ flex: 1 }}>
+      {!isOnline && <OfflineBanner />}
       <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
         {/* Stats row */}
         <View style={styles.statsRow}>
@@ -273,11 +277,17 @@ export default function MediaUploadScreen({
             Capture or upload a coral image to begin AI analysis
           </Text>
 
+          {!isOnline && (
+            <Text style={styles.offlineNote}>
+              Image analysis requires an internet connection.
+            </Text>
+          )}
+
           <View style={styles.btnRow}>
             <TouchableOpacity
-              style={[styles.actionBtn, loading && styles.btnDisabled]}
+              style={[styles.actionBtn, (loading || !isOnline) && styles.btnDisabled]}
               onPress={handleCamera}
-              disabled={loading}
+              disabled={loading || !isOnline}
             >
               <MaterialIcons name="photo-camera" size={20} color="#fff" />
               <Text style={styles.actionBtnText}>Take Photo</Text>
@@ -287,10 +297,10 @@ export default function MediaUploadScreen({
               style={[
                 styles.actionBtn,
                 styles.actionBtnOutline,
-                loading && styles.btnDisabled,
+                (loading || !isOnline) && styles.btnDisabled,
               ]}
               onPress={handleGallery}
-              disabled={loading}
+              disabled={loading || !isOnline}
             >
               <MaterialIcons name="photo-library" size={20} color="#5D81B4" />
               <Text style={[styles.actionBtnText, { color: "#5D81B4" }]}>
@@ -411,6 +421,7 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   btnDisabled: { opacity: 0.5 },
+  offlineNote: { color: "#6B7280", fontSize: 12, textAlign: "center", marginBottom: 8 },
 
   historyBtn: {
     flexDirection: "row",

@@ -63,7 +63,18 @@ export default function LoginScreen() {
         setError(data.error ?? "Login failed.");
         return;
       }
-      await login(data.token);
+      // Pass the locations the server already returned so AuthContext
+      // skips the extra GET /profile round trip.
+      await login(data.token, {
+        user: {
+          id:          data.user.id,
+          name:        data.user.name,
+          email:       data.user.email,
+          nic:         data.user.nic,
+          locationIds: data.user.locationIds,
+        },
+        locations: data.user.locations ?? [],
+      });
       router.replace("/home");
     } catch {
       setError("Network error. Check your connection.");

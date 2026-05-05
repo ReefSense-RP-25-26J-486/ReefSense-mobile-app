@@ -14,8 +14,11 @@ import {
   getAllCoralSummaries,
 } from "../api/growthApi";
 import { Text, TextInput } from "../components/AppText";
+import OfflineBanner from "../components/OfflineBanner";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
+import { useNetworkStatus } from "../hooks/useNetworkStatus";
+import { CacheKey, CacheMaxAge, cacheGet, cacheSet, formatCacheAge } from "../utils/cache";
 
 interface Props {
   onViewDetails: (coralId: string) => void;
@@ -77,11 +80,13 @@ export default function TrackingHistoryScreen({
   onBackToUploads,
 }: Props) {
   const { token, selectedLocation } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [corals, setCorals] = useState<CoralSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cacheAge, setCacheAge] = useState<string | undefined>();
 
   // Filter state
   const [showFilters, setShowFilters] = useState(false);
@@ -92,21 +97,43 @@ export default function TrackingHistoryScreen({
   const fetchSummaries = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const cacheKey = CacheKey.coralSummaries(selectedLocation!.id);
+
     try {
+      if (!isOnline) {
+        // Offline — load from cache
+        const cached = await cacheGet<CoralSummary[]>(cacheKey, CacheMaxAge.coralSummaries);
+        if (cached) {
+          setCorals([...cached.data].sort((a, b) =>
+            new Date(b.last_recorded).getTime() - new Date(a.last_recorded).getTime()));
+          setCacheAge(formatCacheAge(cached.cachedAt));
+        } else {
+          setError("No cached data available. Connect to the internet to load history.");
+        }
+        return;
+      }
+
+      // Online — fetch fresh data and update cache
       const data = await getAllCoralSummaries(token!, selectedLocation!.id);
-      setCorals(
-        [...data].sort(
-          (a, b) =>
-            new Date(b.last_recorded).getTime() -
-            new Date(a.last_recorded).getTime(),
-        ),
-      );
+      const sorted = [...data].sort((a, b) =>
+        new Date(b.last_recorded).getTime() - new Date(a.last_recorded).getTime());
+      setCorals(sorted);
+      await cacheSet(cacheKey, data);
+      setCacheAge(undefined);
     } catch (err: any) {
-      setError(err.message ?? "Failed to load tracking history.");
+      // Network failed — fall back to cache
+      const cached = await cacheGet<CoralSummary[]>(cacheKey, CacheMaxAge.coralSummaries);
+      if (cached) {
+        setCorals([...cached.data].sort((a, b) =>
+          new Date(b.last_recorded).getTime() - new Date(a.last_recorded).getTime()));
+        setCacheAge(formatCacheAge(cached.cachedAt));
+      } else {
+        setError(err.message ?? "Failed to load tracking history.");
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isOnline, token, selectedLocation]);
 
   useEffect(() => {
     fetchSummaries();
@@ -197,6 +224,8 @@ export default function TrackingHistoryScreen({
   };
 
   return (
+    <View style={{ flex: 1 }}>
+      {!isOnline && <OfflineBanner cacheLabel={cacheAge} />}
     <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
       <TouchableOpacity onPress={onBackToUploads} style={styles.backLink}>
         <Text style={styles.backText}>{"< Return to Overview"}</Text>
@@ -483,6 +512,7 @@ export default function TrackingHistoryScreen({
 
       <View style={{ height: 100 }} />
     </ScrollView>
+    </View>
   );
 }
 

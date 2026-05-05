@@ -2,7 +2,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Text } from '../components/AppText';
+import OfflineBanner from '../components/OfflineBanner';
 import { useAuth } from '../context/AuthContext';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { CacheKey, CacheMaxAge, cacheGet, cacheSet, formatCacheAge } from '../utils/cache';
 
 interface TempProps {
     onGoToForecast: () => void;
@@ -17,8 +20,10 @@ const PORT_CITY_LON = 79.8476;
 
 export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoToRecords }: TempProps) {
     const { selectedLocation } = useAuth();
+    const { isOnline } = useNetworkStatus();
     const [apiData, setApiData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [cacheAge, setCacheAge] = useState<string | undefined>();
     const getTimeBlock = () => {
         const hour = new Date().getHours();
         if (hour >= 0 && hour < 6) return "00:00 AM - 06:00 AM";
@@ -47,15 +52,43 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
          Math.abs((selectedLocation as any).center_lon - PORT_CITY_LON) < 0.08);
 
     useEffect(() => {
-        // Skip fetch if location isn't Port City or if the AI service URL isn't configured
         if (!isPortCity || !BASE_URL) { setLoading(false); setApiData(null); return; }
+
+        const cacheKey = CacheKey.temperature(selectedLocation?.id ?? 0);
         setLoading(true);
+
+        if (!isOnline) {
+            // Offline — load from cache
+            cacheGet<any>(cacheKey, CacheMaxAge.temperature).then(cached => {
+                if (cached) {
+                    setApiData(cached.data);
+                    setCacheAge(formatCacheAge(cached.cachedAt));
+                }
+                setLoading(false);
+            });
+            return;
+        }
+
         fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
-            .then((json) => { setApiData(json); setLoading(false); })
-            .catch((err) => { console.error("AI Fetch Error:", err); setLoading(false); });
+            .then((json) => {
+                setApiData(json);
+                cacheSet(cacheKey, json);
+                setCacheAge(undefined);
+                setLoading(false);
+            })
+            .catch(async (err) => {
+                console.error("AI Fetch Error:", err);
+                // Network failed — try cache as fallback
+                const cached = await cacheGet<any>(cacheKey, CacheMaxAge.temperature);
+                if (cached) {
+                    setApiData(cached.data);
+                    setCacheAge(formatCacheAge(cached.cachedAt));
+                }
+                setLoading(false);
+            });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPortCity]);
+    }, [isPortCity, isOnline]);
 
     const mainTemp = (isPortCity && apiData?.header?.main_temp)
         ? `${Math.round(parseFloat(apiData.header.main_temp))}°C`
@@ -80,6 +113,8 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
     }
 
     return (
+        <View style={{ flex: 1 }}>
+        {!isOnline && <OfflineBanner cacheLabel={cacheAge} />}
         <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
             {/* Weather Header Section */}
             <View style={styles.weatherSection}>
@@ -142,6 +177,7 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
 
             <View style={{ height: 140 }} />
         </ScrollView>
+        </View>
     );
 }
 

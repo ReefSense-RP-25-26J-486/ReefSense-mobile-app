@@ -13,8 +13,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from '../../components/AppText';
+import OfflineBanner from '../../components/OfflineBanner';
 import { useAuth } from '../../context/AuthContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
+import { CacheKey, CacheMaxAge, cacheGet, cacheSet, formatCacheAge } from '../../utils/cache';
 
 interface Props {
   onRunAnalysis?: () => void;
@@ -57,21 +60,45 @@ export default function BleachingDetectionScreen({
   onViewHistory,
 }: Props) {
   const { token, selectedLocation } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cacheAge, setCacheAge] = useState<string | undefined>();
 
   const load = useCallback(async () => {
     if (!token || !selectedLocation) return;
+    const cacheKey = CacheKey.bleachingHistory(selectedLocation.id);
     try {
       setLoading(true);
+
+      if (!isOnline) {
+        const cached = await cacheGet<HistoryRecord[]>(cacheKey, CacheMaxAge.bleachingHistory);
+        if (cached) {
+          setRecords(cached.data);
+          setCacheAge(formatCacheAge(cached.cachedAt));
+        } else {
+          setRecords([]);
+        }
+        return;
+      }
+
       const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
+      await cacheSet(cacheKey, data);
+      setCacheAge(undefined);
     } catch {
-      setRecords([]);
+      // Network failed — try cache
+      const cached = await cacheGet<HistoryRecord[]>(cacheKey, CacheMaxAge.bleachingHistory);
+      if (cached) {
+        setRecords(cached.data);
+        setCacheAge(formatCacheAge(cached.cachedAt));
+      } else {
+        setRecords([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isOnline, token, selectedLocation]);
 
   useEffect(() => {
     load();
@@ -127,6 +154,7 @@ export default function BleachingDetectionScreen({
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      {!isOnline && <OfflineBanner cacheLabel={cacheAge} />}
       <View style={styles.container}>
         <ScrollView
           contentContainerStyle={{ paddingBottom: 180 }}
@@ -468,13 +496,15 @@ export default function BleachingDetectionScreen({
 
           {/* ── Action buttons ──────────────────────────────────────── */}
           <Pressable
-            onPress={() => onRunAnalysis && onRunAnalysis()}
-            style={styles.primaryBtn}
-            android_ripple={{ color: "#3e64c6" }}
+            onPress={() => isOnline && onRunAnalysis && onRunAnalysis()}
+            style={[styles.primaryBtn, !isOnline && { opacity: 0.5 }]}
+            android_ripple={isOnline ? { color: "#3e64c6" } : undefined}
           >
             <View style={styles.btnInner}>
               <MaterialIcons name="analytics" size={20} color="#fff" />
-              <Text style={styles.primaryBtnText}>Run Analysis</Text>
+              <Text style={styles.primaryBtnText}>
+                {isOnline ? "Run Analysis" : "Run Analysis (offline)"}
+              </Text>
             </View>
             <MaterialIcons name="chevron-right" size={20} color="#fff" />
           </Pressable>
