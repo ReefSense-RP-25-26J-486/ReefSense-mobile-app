@@ -535,6 +535,9 @@ export default function NurseryPlanningScreen() {
   const [editHeightUnit, setEditHeightUnit] = useState<"cm" | "m">("cm");
   const [editWidthUnit, setEditWidthUnit] = useState<"cm" | "m">("cm");
 
+  // Nursery list search
+  const [nurserySearch, setNurserySearch] = useState("");
+
   // ── Data fetching ────────────────────────────────────────────────────────────
 
   const gisHeaders = (): Record<string, string> => ({
@@ -1008,7 +1011,7 @@ export default function NurseryPlanningScreen() {
                 }}
                 onPress={() => {
                   setSelectedLocation(loc);
-                  setView("LOCATIONDETAIL");
+                  setView("LOCATION_DETAIL");
                 }}
                 tracksViewChanges={false}
                 anchor={{ x: 0.5, y: 1 }}
@@ -1066,11 +1069,57 @@ export default function NurseryPlanningScreen() {
   // ── PANEL VIEWS ───────────────────────────────────────────────────────────────
 
   const renderMainPanel = () => {
+    const now = new Date();
     const usedArea = nurseries.reduce((sum, n) => sum + (n.area_m2 || 0), 0);
     const totalArea = restorationZone?.area_m2 ?? 0;
     const availableArea = Math.max(0, totalArea - usedArea);
     const usagePct = totalArea > 0 ? usedArea / totalArea : 0;
     const chartSize = 130;
+
+    // ── Zone capacity alert ────────────────────────────────────────────
+    const capacityPct = Math.round(usagePct * 100);
+    const showCapacityAlert = totalArea > 0 && usagePct >= 0.8;
+    const capacityColor = usagePct >= 0.95 ? "#CC3344" : "#D97624";
+
+    // ── Nursery age indicator (overdue = placed > 90 days ago) ─────────
+    const INSPECTION_DAYS = 90;
+    const toDate = (raw: string) =>
+      new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw);
+    const overdueNurseries = nurseries.filter((n) => {
+      if (!n.date_placement) return false;
+      const days =
+        (now.getTime() - toDate(n.date_placement).getTime()) /
+        86_400_000;
+      return days > INSPECTION_DAYS;
+    });
+
+    // ── Species diversity ──────────────────────────────────────────────
+    const uniqueSpecies = [
+      ...new Set(
+        nurseries.filter((n) => n.coral_species).map((n) => n.coral_species!),
+      ),
+    ];
+    const SPECIES_TARGET = CORAL_SPECIES.length;
+    const diversityPct = Math.min(1, uniqueSpecies.length / SPECIES_TARGET);
+
+    // ── Monthly placement trend (last 6 months) ────────────────────────
+    const months: { label: string; count: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleString("en-US", { month: "short" });
+      const count = nurseries.filter((n) => {
+        const src = n.date_placement ?? n.created_at;
+        if (!src) return false;
+        const nd = toDate(src);
+        return (
+          nd.getFullYear() === d.getFullYear() &&
+          nd.getMonth() === d.getMonth()
+        );
+      }).length;
+      months.push({ label, count });
+    }
+    const maxMonthCount = Math.max(1, ...months.map((m) => m.count));
+    const BAR_MAX_H = 54;
 
     return (
       <ScrollView
@@ -1098,6 +1147,27 @@ export default function NurseryPlanningScreen() {
             <Text style={styles.totalCountLabel}>Nurseries</Text>
           </View>
         </View>
+
+        {/* ── Zone capacity alert ── */}
+        {showCapacityAlert && (
+          <View style={[styles.alertBanner, { borderColor: capacityColor + "55", backgroundColor: capacityColor === "#CC3344" ? "#FFF0F2" : "#FFF8F0" }]}>
+            <Ionicons name="warning-outline" size={20} color={capacityColor} style={{ marginTop: 1 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.alertTitle, { color: capacityColor }]}>
+                {capacityPct >= 95 ? "Zone at Critical Capacity" : "Zone Nearing Capacity"}
+              </Text>
+              <Text style={styles.alertBody}>
+                {capacityPct}% of the restoration zone is occupied ({usedArea.toFixed(1)} m² of {Math.round(totalArea).toLocaleString()} m²). Consider finding new candidate sites.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.alertActionBtn, { borderColor: capacityColor }]}
+              onPress={() => setView("SUGGESTED_LOCATIONS")}
+            >
+              <Text style={[styles.alertActionText, { color: capacityColor }]}>Find Sites</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Donut chart card */}
         <View style={styles.chartCard}>
@@ -1180,6 +1250,175 @@ export default function NurseryPlanningScreen() {
             );
           })}
         </View>
+
+        {/* ── Nursery age indicator ── */}
+        {overdueNurseries.length > 0 && (
+          <View style={styles.insightCard}>
+            <View style={styles.insightCardHeader}>
+              <Ionicons name="time-outline" size={17} color="#D97624" />
+              <Text style={styles.insightCardTitle}>Inspection Overdue</Text>
+              <View style={[styles.insightBadge, { backgroundColor: "#FEF3EA" }]}>
+                <Text style={[styles.insightBadgeText, { color: "#D97624" }]}>
+                  {overdueNurseries.length}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.insightCardSub}>
+              Placed over {INSPECTION_DAYS} days ago — no recent records logged
+            </Text>
+            {overdueNurseries.slice(0, 4).map((n) => {
+              const days = Math.floor(
+                (now.getTime() - toDate(n.date_placement!).getTime()) /
+                  86_400_000,
+              );
+              const meta =
+                TYPE_META[n.type] ?? { color: PRIMARY, label: n.type };
+              return (
+                <TouchableOpacity
+                  key={n.id}
+                  style={styles.overdueRow}
+                  onPress={() => openNurseryView(n)}
+                >
+                  <View
+                    style={[
+                      styles.overdueTypeDot,
+                      { backgroundColor: meta.color },
+                    ]}
+                  />
+                  <Text style={styles.overdueRowName} numberOfLines={1}>
+                    {getNurseryDisplayName(n)}
+                  </Text>
+                  <View style={styles.overdueDaysBadge}>
+                    <Text style={styles.overdueDaysText}>{days}d</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color="#bbb" />
+                </TouchableOpacity>
+              );
+            })}
+            {overdueNurseries.length > 4 && (
+              <TouchableOpacity onPress={() => setView("VIEW_ALL_NURSERIES")}>
+                <Text style={styles.insightViewMore}>
+                  +{overdueNurseries.length - 4} more overdue →
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* ── Species diversity score ── */}
+        {nurseries.length > 0 && (
+          <View style={styles.insightCard}>
+            <View style={styles.insightCardHeader}>
+              <Ionicons name="leaf-outline" size={17} color="#27975A" />
+              <Text style={styles.insightCardTitle}>Species Diversity</Text>
+              <View
+                style={[styles.insightBadge, { backgroundColor: "#EDFAF4" }]}
+              >
+                <Text style={[styles.insightBadgeText, { color: "#27975A" }]}>
+                  {uniqueSpecies.length}/{SPECIES_TARGET}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.insightCardSub}>
+              {uniqueSpecies.length === SPECIES_TARGET
+                ? "All target species are represented"
+                : `${SPECIES_TARGET - uniqueSpecies.length} more species needed for full diversity`}
+            </Text>
+            {/* Progress bar */}
+            <View style={styles.diversityBarBg}>
+              <View
+                style={[
+                  styles.diversityBarFill,
+                  { width: `${Math.round(diversityPct * 100)}%` },
+                ]}
+              />
+            </View>
+            {/* Species chips */}
+            <View style={styles.diversityChips}>
+              {CORAL_SPECIES.map((sp) => {
+                const active = uniqueSpecies.includes(sp);
+                return (
+                  <View
+                    key={sp}
+                    style={[
+                      styles.speciesChip,
+                      active && styles.speciesChipActive,
+                    ]}
+                  >
+                    {active && (
+                      <Ionicons
+                        name="checkmark"
+                        size={11}
+                        color="#27975A"
+                        style={{ marginRight: 3 }}
+                      />
+                    )}
+                    <Text
+                      style={[
+                        styles.speciesChipText,
+                        active && styles.speciesChipTextActive,
+                      ]}
+                    >
+                      {sp}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Monthly placement trend ── */}
+        {nurseries.length > 0 && (
+          <View style={styles.insightCard}>
+            <View style={styles.insightCardHeader}>
+              <Ionicons name="bar-chart-outline" size={17} color={PRIMARY} />
+              <Text style={styles.insightCardTitle}>Placement Trend</Text>
+              <Text style={styles.insightCardTitleSub}>Last 6 months</Text>
+            </View>
+            <View style={styles.trendChart}>
+              {months.map((m) => {
+                const barH =
+                  m.count > 0
+                    ? Math.max(6, Math.round((m.count / maxMonthCount) * BAR_MAX_H))
+                    : 0;
+                const isCurrentMonth =
+                  m.label ===
+                  now.toLocaleString("en-US", { month: "short" });
+                return (
+                  <View key={m.label} style={styles.trendBarCol}>
+                    <Text style={styles.trendBarCount}>
+                      {m.count > 0 ? m.count : ""}
+                    </Text>
+                    <View style={styles.trendBarTrack}>
+                      {m.count > 0 && (
+                        <View
+                          style={[
+                            styles.trendBarFill,
+                            {
+                              height: barH,
+                              backgroundColor: isCurrentMonth
+                                ? PRIMARY
+                                : PRIMARY + "80",
+                            },
+                          ]}
+                        />
+                      )}
+                    </View>
+                    <Text
+                      style={[
+                        styles.trendBarLabel,
+                        isCurrentMonth && { color: PRIMARY, fontWeight: "700" },
+                      ]}
+                    >
+                      {m.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* View All Nurseries button */}
         <TouchableOpacity
@@ -2026,64 +2265,128 @@ export default function NurseryPlanningScreen() {
     );
   };
 
-  const renderViewAllNurseries = () => (
-    <ScrollView
-      style={styles.fullScreen}
-      contentContainerStyle={styles.fullScreenContent}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.nurseryListHeader}>
-        <Text style={styles.panelTitle}>All Nurseries</Text>
-        {nurseries.length > 0 && (
-          <TouchableOpacity
-            onPress={handleExportNurseries}
-            style={styles.exportBtn}
-          >
-            <MaterialIcons name="file-download" size={20} color={PRIMARY} />
-            <Text style={styles.exportBtnText}>Export</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      {nurseries.length === 0 ? (
-        <Text style={styles.emptyText}>
-          No nurseries yet. Tap + to add one.
-        </Text>
-      ) : (
-        nurseries.map((n) => {
-          const meta = TYPE_META[n.type] ?? { label: n.type, color: PRIMARY };
-          return (
-            <TouchableOpacity
-              key={n.id}
-              style={styles.nurseryListCard}
-              onPress={() => openNurseryView(n)}
-            >
-              <View
-                style={[styles.nurseryListDot, { backgroundColor: meta.color }]}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.nurseryListName}>
-                  {getNurseryDisplayName(n)}
-                </Text>
-                <Text style={styles.nurseryListSub}>
-                  {meta.label} ·{" "}
-                  {n.area_m2 != null ? `${n.area_m2.toFixed(1)} m²` : "--"}
-                </Text>
-                {n.coral_species ? (
-                  <Text style={styles.nurseryListSpecies}>
-                    {n.coral_species}
-                  </Text>
-                ) : null}
-              </View>
-              <MaterialIcons name="chevron-right" size={20} color="#aaa" />
-            </TouchableOpacity>
-          );
+  const renderViewAllNurseries = () => {
+    const now = new Date();
+    const INSPECTION_DAYS = 90;
+    const isOverdue = (n: Nursery) => {
+      if (!n.date_placement) return false;
+      const raw = n.date_placement;
+      const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw);
+      return (now.getTime() - d.getTime()) / 86_400_000 > INSPECTION_DAYS;
+    };
+
+    const trimmed = nurserySearch.trim().toLowerCase();
+    const displayNurseries = trimmed
+      ? nurseries.filter((n) => {
+          const nameMatch = getNurseryDisplayName(n)
+            .toLowerCase()
+            .includes(trimmed);
+          const dateStr = n.date_placement
+            ? formatDate(n.date_placement).toLowerCase()
+            : "";
+          return nameMatch || dateStr.includes(trimmed);
         })
-      )}
-      <TouchableOpacity style={styles.backLink} onPress={() => setView("MAIN")}>
-        <Text style={styles.backLinkText}>← Back</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
+      : nurseries;
+
+    return (
+      <ScrollView
+        style={styles.fullScreen}
+        contentContainerStyle={styles.fullScreenContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.nurseryListHeader}>
+          <Text style={styles.panelTitle}>All Nurseries</Text>
+          {nurseries.length > 0 && (
+            <TouchableOpacity
+              onPress={handleExportNurseries}
+              style={styles.exportBtn}
+            >
+              <MaterialIcons name="file-download" size={20} color={PRIMARY} />
+              <Text style={styles.exportBtnText}>Export</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Search bar */}
+        {nurseries.length > 0 && (
+          <View style={styles.nurserySearchRow}>
+            <Ionicons name="search-outline" size={16} color="#999" style={{ marginRight: 6 }} />
+            <TextInput
+              style={styles.nurserySearchInput}
+              placeholder="Search by name or date…"
+              placeholderTextColor="#999"
+              value={nurserySearch}
+              onChangeText={setNurserySearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {nurserySearch.length > 0 && (
+              <TouchableOpacity onPress={() => setNurserySearch("")} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={16} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {nurseries.length === 0 ? (
+          <Text style={styles.emptyText}>
+            No nurseries yet. Tap + to add one.
+          </Text>
+        ) : displayNurseries.length === 0 ? (
+          <Text style={styles.emptyText}>
+            No nurseries match "{nurserySearch.trim()}".
+          </Text>
+        ) : (
+          displayNurseries.map((n) => {
+            const meta = TYPE_META[n.type] ?? { label: n.type, color: PRIMARY };
+            const overdue = isOverdue(n);
+            return (
+              <TouchableOpacity
+                key={n.id}
+                style={[
+                  styles.nurseryListCard,
+                  overdue && styles.nurseryListCardOverdue,
+                ]}
+                onPress={() => openNurseryView(n)}
+              >
+                <View
+                  style={[styles.nurseryListDot, { backgroundColor: meta.color }]}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.nurseryListName}>
+                      {getNurseryDisplayName(n)}
+                    </Text>
+                    {overdue && (
+                      <View style={styles.overduePill}>
+                        <Ionicons name="time-outline" size={11} color="#D97624" />
+                        <Text style={styles.overduePillText}>Overdue</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.nurseryListSub}>
+                    {meta.label} ·{" "}
+                    {n.area_m2 != null ? `${n.area_m2.toFixed(1)} m²` : "--"}
+                    {n.date_placement ? ` · ${formatDate(n.date_placement)}` : ""}
+                  </Text>
+                  {n.coral_species ? (
+                    <Text style={styles.nurseryListSpecies}>
+                      {n.coral_species}
+                    </Text>
+                  ) : null}
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color="#aaa" />
+              </TouchableOpacity>
+            );
+          })
+        )}
+        <TouchableOpacity style={styles.backLink} onPress={() => setView("MAIN")}>
+          <Text style={styles.backLinkText}>← Back</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
 
   // ── SPECIES PICKER MODAL ──────────────────────────────────────────────────────
 
@@ -2208,6 +2511,13 @@ export default function NurseryPlanningScreen() {
         >
           <View style={styles.dragArea} {...panResponder.panHandlers}>
             <View style={styles.dragHandle} />
+            <TouchableOpacity
+              onPress={() => snapSheet(PARTIAL_OFFSET)}
+              style={styles.collapseSheetBtn}
+              hitSlop={{ top: 6, bottom: 10, left: 60, right: 60 }}
+            >
+              <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+            </TouchableOpacity>
           </View>
           {renderBottomPanel()}
         </Animated.View>
@@ -2472,6 +2782,220 @@ const styles = StyleSheet.create({
   },
   viewAllBtnText: { fontSize: 14, fontWeight: "600", color: PRIMARY },
 
+  // ── Zone capacity alert ──────────────────────────────────────────────────
+  alertBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  alertTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  alertBody: {
+    fontSize: 12,
+    color: "#555",
+    lineHeight: 17,
+  },
+  alertActionBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 2,
+  },
+  alertActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // ── Shared insight card ──────────────────────────────────────────────────
+  insightCard: {
+    backgroundColor: "#F8FAFF",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#E8EFF8",
+  },
+  insightCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 4,
+  },
+  insightCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111",
+    flex: 1,
+  },
+  insightCardTitleSub: {
+    fontSize: 11,
+    color: "#999",
+    fontWeight: "500",
+  },
+  insightCardSub: {
+    fontSize: 12,
+    color: "#777",
+    marginBottom: 10,
+    lineHeight: 17,
+  },
+  insightBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  insightBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  insightViewMore: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
+    textAlign: "right",
+  },
+
+  // ── Overdue rows (inside insight card) ──────────────────────────────────
+  overdueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 7,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF4FF",
+  },
+  overdueTypeDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+  overdueRowName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#222",
+  },
+  overdueDaysBadge: {
+    backgroundColor: "#FEF3EA",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  overdueDaysText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#D97624",
+  },
+
+  // ── Overdue pill on nursery list cards ──────────────────────────────────
+  overduePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#FEF3EA",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  overduePillText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#D97624",
+  },
+  nurseryListCardOverdue: {
+    borderColor: "#F0C080",
+    backgroundColor: "#FFFAF3",
+  },
+
+  // ── Species diversity ────────────────────────────────────────────────────
+  diversityBarBg: {
+    height: 8,
+    backgroundColor: "#E8EFF8",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  diversityBarFill: {
+    height: 8,
+    backgroundColor: "#27975A",
+    borderRadius: 4,
+  },
+  diversityChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  speciesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#EEF4FF",
+    borderWidth: 1,
+    borderColor: "#D8E5F8",
+  },
+  speciesChipActive: {
+    backgroundColor: "#EDFAF4",
+    borderColor: "#A8DFC0",
+  },
+  speciesChipText: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "500",
+  },
+  speciesChipTextActive: {
+    color: "#1A7A42",
+    fontWeight: "700",
+  },
+
+  // ── Monthly trend bar chart ──────────────────────────────────────────────
+  trendChart: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    height: 90,
+    paddingTop: 12,
+    gap: 4,
+  },
+  trendBarCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+  },
+  trendBarCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#517AAD",
+    minHeight: 14,
+  },
+  trendBarTrack: {
+    width: "100%",
+    height: 54,
+    justifyContent: "flex-end",
+    backgroundColor: "#EEF4FF",
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  trendBarFill: {
+    width: "100%",
+    borderRadius: 6,
+  },
+  trendBarLabel: {
+    fontSize: 10,
+    color: "#999",
+    fontWeight: "500",
+  },
+
   // Nursery list header + export
   nurseryListHeader: {
     flexDirection: "row",
@@ -2489,6 +3013,32 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   exportBtnText: { fontSize: 13, fontWeight: "700", color: PRIMARY },
+
+  // Nursery list search bar
+  nurserySearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F4FF",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#DDE8FF",
+  },
+  nurserySearchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: "#111",
+    fontFamily: "DMSans_400Regular",
+  },
+
+  // Collapse sheet button (inside dragArea)
+  collapseSheetBtn: {
+    marginTop: 2,
+    alignSelf: "center",
+    padding: 2,
+  },
 
   // Nursery list card (for VIEW_ALL_NURSERIES)
   nurseryListCard: {

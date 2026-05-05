@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -88,6 +89,7 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
   const [selectedRecord, setSelectedRecord] = useState<HistoryRecord | null>(
     null,
   );
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = useCallback(async (isPullRefresh = false) => {
     if (!token || !selectedLocation) return;
@@ -142,6 +144,15 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
       ],
     );
   };
+
+  // Filter by coral ID search query
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const filteredRecords = trimmedQuery
+    ? records.filter((r) =>
+        r.coral_id != null &&
+        String(r.coral_id).toLowerCase().includes(trimmedQuery),
+      )
+    : records;
 
   // Summary counts derived from records
   const totalBleached = records.filter(
@@ -222,6 +233,28 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
           </View>
         )}
 
+        {/* ── Coral ID Search bar ─────────────────────────────────────── */}
+        {!loading && !error && records.length > 0 && (
+          <View style={styles.searchRow}>
+            <Ionicons name="search-outline" size={16} color={colors.muted} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by Coral ID…"
+              placeholderTextColor={colors.muted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchClear}>
+                <Ionicons name="close-circle" size={16} color={colors.muted} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* ── Loading ─────────────────────────────────────────────────── */}
         {loading && (
           <View style={styles.centred}>
@@ -256,10 +289,21 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
           </View>
         )}
 
+        {/* ── No search results ───────────────────────────────────────── */}
+        {!loading && !error && records.length > 0 && filteredRecords.length === 0 && (
+          <View style={styles.centred}>
+            <Ionicons name="search-outline" size={40} color={colors.muted} />
+            <Text style={styles.emptyTitle}>No Results</Text>
+            <Text style={styles.mutedText}>
+              No records match Coral ID "{searchQuery.trim()}".
+            </Text>
+          </View>
+        )}
+
         {/* ── Records ─────────────────────────────────────────────────── */}
         {!loading &&
           !error &&
-          records.map((rec) => {
+          filteredRecords.map((rec) => {
             const sev = getSeverity(rec.bleaching_percentage);
             const bleachedPct = rec.bleaching_percentage.toFixed(1);
             const healthyCnt = rec.coral_detected - rec.bleaching_detected;
@@ -843,6 +887,27 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   summaryDivider: { width: 1, height: 36, backgroundColor: "#DDE8FF" },
+
+  /* Search bar */
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#DDE8FF",
+  },
+  searchIcon: { marginRight: 6 },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: "#1A2B45",
+    fontFamily: "DMSans_400Regular",
+  },
+  searchClear: { padding: 4 },
 
   /* Loading / error / empty */
   centred: { alignItems: "center", marginTop: 56, gap: 12 },

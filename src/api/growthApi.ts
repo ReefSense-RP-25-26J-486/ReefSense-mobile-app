@@ -90,6 +90,36 @@ export interface CoralSummary {
   record_count: number;
 }
 
+// POST /api/growth/extract-gps
+// Uploads the ORIGINAL (un-resized) image to extract GPS from raw JPEG EXIF.
+// Must be called BEFORE resizing, because expo-image-manipulator strips EXIF.
+
+async function extractGpsFromOriginal(
+  originalUri: string,
+  token: string,
+  locationId: number,
+): Promise<{ latitude: number | null; longitude: number | null }> {
+  try {
+    const gpsForm = new FormData();
+    // @ts-ignore — React Native FormData file object
+    gpsForm.append("file", { uri: originalUri, name: "original.jpg", type: "image/jpeg" });
+    const gpsRes = await fetch(`${BASE_URL}/api/growth/extract-gps`, {
+      method: "POST",
+      body: gpsForm,
+      headers: authHeaders(token, locationId),
+    });
+    if (!gpsRes.ok) return { latitude: null, longitude: null };
+    const gpsData = await gpsRes.json();
+    const lat = gpsData.latitude != null ? Number(gpsData.latitude) : null;
+    const lon = gpsData.longitude != null ? Number(gpsData.longitude) : null;
+    console.log("[Growth/GPS] server-extracted from original EXIF:", lat, lon);
+    return { latitude: lat, longitude: lon };
+  } catch (e) {
+    console.warn("[Growth/GPS] extract-gps failed:", e);
+    return { latitude: null, longitude: null };
+  }
+}
+
 // POST /api/growth/analyze
 
 export async function analyzeImage(
@@ -97,9 +127,17 @@ export async function analyzeImage(
   token: string,
   locationId: number,
 ): Promise<AnalyzeResult> {
-  // Resize to max 1500px wide before uploading — keeps the HF response
-  // manageable and avoids out-of-memory errors on large iPhone photos.
   console.log("[Growth] original URI:", imageUri);
+
+  // Step 1: Extract GPS from the ORIGINAL image bytes BEFORE any resize.
+  // expo-image-manipulator re-encodes the JPEG and strips all EXIF (including GPS),
+  // so we must send the untouched original to the backend for EXIF extraction.
+  // This is the same approach used by the bleaching component.
+  const { latitude: imageLatitude, longitude: imageLongitude } =
+    await extractGpsFromOriginal(imageUri, token, locationId);
+
+  // Step 2: Resize to max 1500px wide before uploading to HF — keeps the
+  // response manageable and avoids OOM errors on large iPhone photos.
   const uploadUri = await resizeForUpload(imageUri, 1500);
   console.log("[Growth] resized URI:", uploadUri);
 
@@ -156,8 +194,9 @@ export async function analyzeImage(
     annotatedImage: data.annotated_image ?? null,
     enhancedImage: data.enhanced_image ?? null,
     imageSize: Array.isArray(data.image_size) ? data.image_size : undefined,
-    imageLatitude: data.image_latitude != null ? Number(data.image_latitude) : null,
-    imageLongitude: data.image_longitude != null ? Number(data.image_longitude) : null,
+    // Use GPS extracted from the original JPEG (before resize stripped it)
+    imageLatitude,
+    imageLongitude,
   };
 }
 
