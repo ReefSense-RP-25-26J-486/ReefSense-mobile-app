@@ -1,44 +1,70 @@
-//  Base URL
+import * as ImageManipulator from "expo-image-manipulator";
+
+// Base URL
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
-// ── Auth header helpers ───────────────────────────────────────────────────────
+/** Resize an image so neither dimension exceeds maxPx, keeping aspect ratio.
+ *  Returns the URI of the resized image (JPEG, quality 0.82). */
+async function resizeForUpload(
+  uri: string,
+  maxPx = 1500,
+): Promise<string> {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: maxPx } }],
+    { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  return result.uri;
+}
 
-function authHeaders(token: string, locationId: number): Record<string, string> {
+function authHeaders(
+  token: string,
+  locationId: number,
+): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
-    'X-Location-ID': String(locationId),
+    "X-Location-ID": String(locationId),
   };
 }
 
 // Types
+
 export interface AnalyzedCoral {
   coral_id: string;
   species: string;
   area_cm2: number;
   confidence: number;
   cnn_feed_image?: string;
+  /** [x, y] centroid in original image pixels — returned by updated HF app */
+  centroid?: [number, number];
 }
 
 export interface AnalyzeResult {
   corals: AnalyzedCoral[];
   annotatedImage: string | null;
   enhancedImage: string | null;
+  /** [width, height] of original image — returned by updated HF app */
+  imageSize?: [number, number];
+  /** GPS extracted server-side from JPEG EXIF — reliable on all platforms */
+  imageLatitude: number | null;
+  imageLongitude: number | null;
 }
 
 export interface AnalyzeResponse {
-  // Actual HuggingFace space format
   status?: string;
   detections?: any[];
   enhanced_image?: string;
   annotated_image?: string;
-  // predictions array format
+  image_size?: [number, number];
   predictions?: AnalyzedCoral[];
-  // flat object fallback
   coral_id?: string;
   species?: string;
   area_cm2?: number;
   confidence?: number;
   cnn_feed_image?: string;
+  /** GPS extracted server-side from JPEG EXIF */
+  image_latitude?: number | null;
+  image_longitude?: number | null;
 }
 
 export interface CoralRecord {
@@ -50,6 +76,10 @@ export interface CoralRecord {
   cnn_feed_image?: string;
   recorded_at: string;
   growth_cm2?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  remarks?: string | null;
+  image_url?: string | null;
 }
 
 export interface CoralSummary {
@@ -61,28 +91,34 @@ export interface CoralSummary {
 }
 
 // POST /api/growth/analyze
+
 export async function analyzeImage(
   imageUri: string,
   token: string,
   locationId: number,
 ): Promise<AnalyzeResult> {
+  // Resize to max 1500px wide before uploading — keeps the HF response
+  // manageable and avoids out-of-memory errors on large iPhone photos.
+  console.log("[Growth] original URI:", imageUri);
+  const uploadUri = await resizeForUpload(imageUri, 1500);
+  console.log("[Growth] resized URI:", uploadUri);
+
   const formData = new FormData();
-
-  const filename = imageUri.split("/").pop() ?? "photo.jpg";
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : "image/jpeg";
-
+  const filename = "coral.jpg";
   // @ts-ignore
-  formData.append("file", { uri: imageUri, name: filename, type });
+  formData.append("file", { uri: uploadUri, name: filename, type: "image/jpeg" });
 
+  console.log("[Growth] sending to:", `${BASE_URL}/api/growth/analyze`);
   const res = await fetch(`${BASE_URL}/api/growth/analyze`, {
     method: "POST",
     body: formData,
     headers: authHeaders(token, locationId),
   });
 
+  console.log("[Growth] response status:", res.status);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    console.error("[Growth] error body:", JSON.stringify(err));
     throw new Error(err.error ?? `Server error ${res.status}`);
   }
 
@@ -90,14 +126,16 @@ export async function analyzeImage(
 
   let corals: AnalyzedCoral[] = [];
 
-  // Actual HuggingFace space format: { status, detections: [...], enhanced_image, annotated_image }
   if (data.detections && Array.isArray(data.detections)) {
-    corals = data.detections.map((d: any) => ({
-      coral_id: d.coral_id ?? `coral_${d.id ?? Date.now()}`,
+    corals = data.detections.map((d: any, i: number) => ({
+      coral_id: d.coral_id ?? `coral_${d.id ?? i + 1}`,
       species: d.species,
       area_cm2: d.area_cm2,
       confidence: d.confidence,
       cnn_feed_image: d.cnn_feed_image,
+      centroid: Array.isArray(d.centroid)
+        ? (d.centroid as [number, number])
+        : undefined,
     }));
   } else if (data.predictions && Array.isArray(data.predictions)) {
     corals = data.predictions;
@@ -117,10 +155,14 @@ export async function analyzeImage(
     corals,
     annotatedImage: data.annotated_image ?? null,
     enhancedImage: data.enhanced_image ?? null,
+    imageSize: Array.isArray(data.image_size) ? data.image_size : undefined,
+    imageLatitude: data.image_latitude != null ? Number(data.image_latitude) : null,
+    imageLongitude: data.image_longitude != null ? Number(data.image_longitude) : null,
   };
 }
 
-// POST /api/growth/records
+//  POST /api/growth/records
+
 export async function saveGrowthRecord(
   payload: {
     coral_id: string;
@@ -129,6 +171,9 @@ export async function saveGrowthRecord(
     confidence?: number;
     cnn_feed_image?: string;
     nursery_id?: number;
+    latitude?: number | null;
+    longitude?: number | null;
+    remarks?: string | null;
   },
   token: string,
   locationId: number,
@@ -151,6 +196,7 @@ export async function saveGrowthRecord(
 }
 
 // GET /api/growth/records
+
 export async function getAllCoralSummaries(
   token: string,
   locationId: number,
@@ -163,7 +209,8 @@ export async function getAllCoralSummaries(
   return data.corals ?? [];
 }
 
-// DELETE /api/growth/records/entry/:recordId  (single record)
+// DELETE /api/growth/records/entry/:recordId
+
 export async function deleteCoralRecord(
   recordId: number,
   token: string,
@@ -179,7 +226,8 @@ export async function deleteCoralRecord(
   }
 }
 
-// DELETE /api/growth/records/:coralId  (entire coral + all records)
+// DELETE /api/growth/records/:coralId
+
 export async function deleteCoral(
   coralId: string,
   token: string,
@@ -187,10 +235,7 @@ export async function deleteCoral(
 ): Promise<void> {
   const res = await fetch(
     `${BASE_URL}/api/growth/records/${encodeURIComponent(coralId)}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(token, locationId),
-    },
+    { method: "DELETE", headers: authHeaders(token, locationId) },
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -199,6 +244,7 @@ export async function deleteCoral(
 }
 
 // GET /api/growth/records/:coralId
+
 export async function getCoralHistory(
   coralId: string,
   token: string,
@@ -206,9 +252,7 @@ export async function getCoralHistory(
 ): Promise<CoralRecord[]> {
   const res = await fetch(
     `${BASE_URL}/api/growth/records/${encodeURIComponent(coralId)}`,
-    {
-      headers: authHeaders(token, locationId),
-    },
+    { headers: authHeaders(token, locationId) },
   );
   if (!res.ok) throw new Error(`Server error ${res.status}`);
   const data = await res.json();

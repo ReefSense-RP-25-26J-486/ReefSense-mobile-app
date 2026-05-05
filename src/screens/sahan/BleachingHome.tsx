@@ -5,6 +5,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -59,17 +60,20 @@ export default function BleachingDetectionScreen({
   const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isPullRefresh = false) => {
     if (!token || !selectedLocation) return;
     try {
-      setLoading(true);
+      if (isPullRefresh) setRefreshing(true);
+      else setLoading(true);
       const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
     } catch {
       setRecords([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -79,6 +83,7 @@ export default function BleachingDetectionScreen({
 
   // Derived values — latest is the first (newest) record
   const latest = records.length > 0 ? records[0] : null;
+  const latestSiteName = latest?.location_details?.name ?? latest?.location;
 
   // Latest record stats
   const bleachedPct  = latest ? Math.round(latest.bleaching_percentage) : 0;
@@ -131,6 +136,14 @@ export default function BleachingDetectionScreen({
         <ScrollView
           contentContainerStyle={{ paddingBottom: 180 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(true)}
+              colors={["#4A78D0"]}
+              tintColor="#4A78D0"
+            />
+          }
         >
           {/* Back link */}
           {onBack && (
@@ -144,7 +157,7 @@ export default function BleachingDetectionScreen({
             <View>
               <Text style={styles.smallMuted}>Site</Text>
               <Text style={styles.location}>
-                {latest ? latest.location : "—"}
+                {latestSiteName ?? "—"}
               </Text>
             </View>
             <Text style={styles.date}>
@@ -214,7 +227,9 @@ export default function BleachingDetectionScreen({
                         {latest.bleaching_percentage.toFixed(1)}%{" "}
                       </Text>
                       of corals at{" "}
-                      <Text style={styles.summaryHighlight}>{latest.location} </Text>
+                      <Text style={styles.summaryHighlight}>
+                        {latestSiteName}{" "}
+                      </Text>
                       are bleached.{" "}
                       <Text style={[styles.summaryHighlight, { color: sev.color }]}>
                         {sev.label}
@@ -241,6 +256,14 @@ export default function BleachingDetectionScreen({
                       <View style={[styles.summaryMetaPill, { marginTop: 4 }]}>
                         <Ionicons name="pricetag-outline" size={11} color={colors.muted} />
                         <Text style={styles.summaryMetaText}>Coral ID: {latest.coral_id}</Text>
+                      </View>
+                    )}
+                    {latest.location_details?.slug && (
+                      <View style={[styles.summaryMetaPill, { marginTop: 4 }]}>
+                        <Ionicons name="map-outline" size={11} color={colors.muted} />
+                        <Text style={styles.summaryMetaText}>
+                          Site: {latest.location_details.slug}
+                        </Text>
                       </View>
                     )}
                   </View>

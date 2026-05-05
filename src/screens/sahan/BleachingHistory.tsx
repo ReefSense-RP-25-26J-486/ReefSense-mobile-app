@@ -6,6 +6,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -15,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from '../../components/AppText';
 import { useAuth } from '../../context/AuthContext';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
+import { exportToCsv } from "../../utils/exportCsv";
 
 const colors = {
   primary: "#4A78D0",
@@ -71,19 +73,27 @@ const fmtDate = (iso: string) =>
     year: "numeric",
   });
 
+const fmtCoordinate = (value?: number | string | null) => {
+  if (value == null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(5) : String(value);
+};
+
 export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
   const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<HistoryRecord | null>(
     null,
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isPullRefresh = false) => {
     if (!token || !selectedLocation) return;
     try {
-      setLoading(true);
+      if (isPullRefresh) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
@@ -91,12 +101,47 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
       setError(err?.message ?? "Failed to load history.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [token, selectedLocation]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleExport = () => {
+    exportToCsv(
+      'bleaching_history',
+      records.map((r) => ({
+        id: r.id,
+        date: fmtDate(r.date),
+        location: r.location_details?.name ?? r.location,
+        nursery: r.nursery,
+        coral_id: r.coral_id ?? '',
+        coral_detected: r.coral_detected,
+        bleaching_detected: r.bleaching_detected,
+        healthy_corals: r.coral_detected - r.bleaching_detected,
+        bleaching_percentage: r.bleaching_percentage.toFixed(1),
+        severity: getSeverity(r.bleaching_percentage).label,
+        latitude: r.image_latitude ?? '',
+        longitude: r.image_longitude ?? '',
+      })),
+      [
+        { key: 'id',                  label: 'ID' },
+        { key: 'date',                label: 'Date' },
+        { key: 'location',            label: 'Location' },
+        { key: 'nursery',             label: 'Nursery' },
+        { key: 'coral_id',            label: 'Coral ID' },
+        { key: 'coral_detected',      label: 'Coral Detected' },
+        { key: 'bleaching_detected',  label: 'Bleaching Detected' },
+        { key: 'healthy_corals',      label: 'Healthy Corals' },
+        { key: 'bleaching_percentage',label: 'Bleaching %' },
+        { key: 'severity',            label: 'Severity' },
+        { key: 'latitude',            label: 'Latitude' },
+        { key: 'longitude',           label: 'Longitude' },
+      ],
+    );
+  };
 
   // Summary counts derived from records
   const totalBleached = records.filter(
@@ -124,16 +169,31 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
           <Text style={styles.backText}>Overview</Text>
         </TouchableOpacity>
-        {!loading && (
-          <TouchableOpacity onPress={load} style={styles.refreshBtn}>
-            <MaterialIcons name="refresh" size={22} color={colors.primary} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.topBarActions}>
+          {!loading && records.length > 0 && (
+            <TouchableOpacity onPress={handleExport} style={styles.iconBtn}>
+              <MaterialIcons name="file-download" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          {!loading && (
+            <TouchableOpacity onPress={() => load()} style={styles.iconBtn}>
+              <MaterialIcons name="refresh" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* ── Page heading ────────────────────────────────────────────── */}
         <Text style={styles.pageTitle}>Analysis History</Text>
@@ -179,7 +239,7 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
               color={colors.bleached}
             />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={load} style={styles.retryBtn}>
+            <TouchableOpacity onPress={() => load()} style={styles.retryBtn}>
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -203,6 +263,7 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
             const sev = getSeverity(rec.bleaching_percentage);
             const bleachedPct = rec.bleaching_percentage.toFixed(1);
             const healthyCnt = rec.coral_detected - rec.bleaching_detected;
+            const siteName = rec.location_details?.name ?? rec.location;
 
             return (
               <TouchableOpacity
@@ -232,7 +293,7 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                   {/* Row 1: Location + Date */}
                   <View style={styles.cardHeaderRow}>
                     <Text style={styles.cardLocation} numberOfLines={1}>
-                      {rec.location}
+                      {siteName}
                     </Text>
                     <Text style={styles.cardDate}>{fmtDate(rec.date)}</Text>
                   </View>
@@ -245,6 +306,19 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                       color={colors.muted}
                     />
                     <Text style={styles.cardMeta}>{rec.nursery}</Text>
+                    {rec.location_details?.slug && (
+                      <>
+                        <Ionicons
+                          name="map-outline"
+                          size={12}
+                          color={colors.muted}
+                          style={{ marginLeft: 10 }}
+                        />
+                        <Text style={styles.cardMeta}>
+                          {rec.location_details.slug}
+                        </Text>
+                      </>
+                    )}
                     {rec.coral_id != null && (
                       <>
                         <Ionicons
@@ -345,7 +419,8 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                 >
                   <View style={styles.modalTitleCol}>
                     <Text style={styles.modalTitle} numberOfLines={1}>
-                      {selectedRecord.location}
+                      {selectedRecord.location_details?.name ??
+                        selectedRecord.location}
                     </Text>
                     <Text style={styles.modalSubtitle}>
                       {fmtDate(selectedRecord.date)}
@@ -532,7 +607,8 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                       </Text>
                       of corals at{" "}
                       <Text style={styles.modalSummaryBold}>
-                        {selectedRecord.location}
+                        {selectedRecord.location_details?.name ??
+                          selectedRecord.location}
                       </Text>{" "}
                       showed bleaching signs. Out of{" "}
                       <Text style={styles.modalSummaryBold}>
@@ -561,6 +637,64 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                   </View>
 
                   {/* ── Meta details ──────────────────────────── */}
+                  {selectedRecord.location_details && (
+                    <View style={styles.modalLocationCard}>
+                      <View style={styles.modalLocationHeader}>
+                        <Ionicons
+                          name="map-outline"
+                          size={17}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.modalMetaTitle}>Research Site</Text>
+                      </View>
+                      <Text style={styles.modalLocationName}>
+                        {selectedRecord.location_details.name}
+                      </Text>
+                      {selectedRecord.location_details.description ? (
+                        <Text style={styles.modalLocationDescription}>
+                          {selectedRecord.location_details.description}
+                        </Text>
+                      ) : null}
+                      <View style={styles.modalLocationGrid}>
+                        <View style={styles.modalLocationItem}>
+                          <Text style={styles.modalLocationLabel}>Site ID</Text>
+                          <Text style={styles.modalLocationValue}>
+                            {selectedRecord.location_details.id}
+                          </Text>
+                        </View>
+                        {selectedRecord.location_details.slug ? (
+                          <View style={styles.modalLocationItem}>
+                            <Text style={styles.modalLocationLabel}>Slug</Text>
+                            <Text style={styles.modalLocationValue}>
+                              {selectedRecord.location_details.slug}
+                            </Text>
+                          </View>
+                        ) : null}
+                        {fmtCoordinate(
+                          selectedRecord.location_details.center_lat,
+                        ) &&
+                        fmtCoordinate(
+                          selectedRecord.location_details.center_lon,
+                        ) ? (
+                          <View style={styles.modalLocationItem}>
+                            <Text style={styles.modalLocationLabel}>
+                              Center
+                            </Text>
+                            <Text style={styles.modalLocationValue}>
+                              {fmtCoordinate(
+                                selectedRecord.location_details.center_lat,
+                              )}
+                              ,{" "}
+                              {fmtCoordinate(
+                                selectedRecord.location_details.center_lon,
+                              )}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                  )}
+
                   <View style={styles.modalMetaCard}>
                     <Text style={styles.modalMetaTitle}>Analysis Details</Text>
 
@@ -618,6 +752,25 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
                         </View>
                       </>
                     )}
+
+                    {fmtCoordinate(selectedRecord.image_latitude) &&
+                    fmtCoordinate(selectedRecord.image_longitude) ? (
+                      <>
+                        <View style={styles.modalMetaDivider} />
+                        <View style={styles.modalMetaRow}>
+                          <Ionicons
+                            name="navigate-outline"
+                            size={15}
+                            color={colors.muted}
+                          />
+                          <Text style={styles.modalMetaLabel}>Image GPS</Text>
+                          <Text style={styles.modalMetaValue}>
+                            {fmtCoordinate(selectedRecord.image_latitude)},{" "}
+                            {fmtCoordinate(selectedRecord.image_longitude)}
+                          </Text>
+                        </View>
+                      </>
+                    ) : null}
                   </View>
 
                   <View style={{ height: 32 }} />
@@ -657,7 +810,8 @@ const styles = StyleSheet.create({
   },
   backLink: { flexDirection: "row", alignItems: "center", gap: 4 },
   backText: { color: colors.primary, fontWeight: "700", fontSize: 15 },
-  refreshBtn: { padding: 6 },
+  topBarActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  iconBtn: { padding: 6 },
 
   /* Scroll content */
   container: { paddingHorizontal: 16, paddingTop: 16 },
@@ -931,6 +1085,60 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   modalSummaryBold: { fontWeight: "800" },
+
+  /* Location details card */
+  modalLocationCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#E3ECFF",
+    ...shadow,
+  },
+  modalLocationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 8,
+  },
+  modalLocationName: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#1A2B45",
+  },
+  modalLocationDescription: {
+    color: "#607087",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  modalLocationGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  modalLocationItem: {
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: "30%",
+    flexGrow: 1,
+  },
+  modalLocationLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 2,
+    textTransform: "uppercase",
+  },
+  modalLocationValue: {
+    color: "#1A2B45",
+    fontSize: 12,
+    fontWeight: "800",
+  },
 
   /* Meta details card */
   modalMetaCard: {

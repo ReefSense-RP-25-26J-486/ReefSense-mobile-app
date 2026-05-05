@@ -29,6 +29,12 @@ interface Props {
   onClose: () => void;
 }
 
+const fmtCoordinate = (value?: number | string | null) => {
+  if (value == null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(5) : String(value);
+};
+
 export default function BleachingAnalysis({ onClose }: Props) {
   const { token, selectedLocation } = useAuth();
   const [location, setLocation] = useState("Tropical Bay");
@@ -39,6 +45,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
   const [loadingNurseries, setLoadingNurseries] = useState(false);
   const [showNurseryModal, setShowNurseryModal] = useState(false);
   const [coralId, setCoralId] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
 
@@ -60,7 +67,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
           type: n.type,
         }));
         setNurseryOptions(list);
-        if (list.length > 0) setNursery(list[0]);
+        // Do not pre-select — nursery is optional, user must pick explicitly
       })
       .catch(() => {})
       .finally(() => setLoadingNurseries(false));
@@ -163,6 +170,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
             ? `${nursery.name ?? nursery.type} #${nursery.id}`
             : "",
           coral_id: coralId.trim(),
+          remarks: remarks.trim(),
         },
         token!,
         selectedLocation!.id,
@@ -353,7 +361,10 @@ export default function BleachingAnalysis({ onClose }: Props) {
           </View>
 
           <View style={styles.formRow}>
-            <Text style={styles.fieldLabel}>Nursery</Text>
+            <View style={styles.fieldLabelRow}>
+              <Text style={styles.fieldLabel}>Nursery</Text>
+              <Text style={styles.fieldOptionalTag}>optional</Text>
+            </View>
             <TouchableOpacity
               onPress={() =>
                 nurseryOptions.length > 0 && setShowNurseryModal(true)
@@ -364,14 +375,26 @@ export default function BleachingAnalysis({ onClose }: Props) {
                 <ActivityIndicator size="small" color="#517AAD" />
               ) : nurseryOptions.length === 0 ? (
                 <Text style={[styles.fieldValue, { color: "#aaa" }]}>
-                  No nurseries found
+                  No nurseries available
                 </Text>
               ) : (
-                <Text style={styles.fieldValue}>
-                  {nursery ? `${nursery.name ?? ""}` : "Select nursery"}
+                <Text style={[styles.fieldValue, !nursery && { color: "#aaa", fontWeight: "400" }]}>
+                  {nursery ? `${nursery.name ?? nursery.type}` : "None selected"}
                 </Text>
               )}
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.formRow}>
+            <Text style={styles.fieldLabel}>Remarks</Text>
+            <TextInput
+              value={remarks}
+              onChangeText={setRemarks}
+              placeholder="Enter remarks"
+              style={[styles.input, styles.remarksInput]}
+              multiline
+              textAlignVertical="top"
+            />
           </View>
 
           {/* Upload image button */}
@@ -424,6 +447,17 @@ export default function BleachingAnalysis({ onClose }: Props) {
             <View style={styles.modalOverlay}>
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Select Nursery</Text>
+
+                {/* None option */}
+                <TouchableOpacity
+                  onPress={() => { setNursery(null); setShowNurseryModal(false); }}
+                  style={styles.modalItem}
+                >
+                  <Text style={[styles.fieldValue, !nursery && { color: "#517AAD", fontWeight: "900" }]}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+
                 {nurseryOptions.map((n) => {
                   const label = `${n.name ?? n.type} #${n.id}`;
                   const isSelected = nursery?.id === n.id;
@@ -525,6 +559,78 @@ export default function BleachingAnalysis({ onClose }: Props) {
                         </Text>
                       </View>
                     </View>
+
+                    {result.location_details && (
+                      <View style={styles.resultLocationCard}>
+                        <View style={styles.resultLocationTitleRow}>
+                          <Ionicons
+                            name="map-outline"
+                            size={17}
+                            color="#4A78D0"
+                          />
+                          <Text style={styles.resultLocationTitle}>
+                            Research Site
+                          </Text>
+                        </View>
+                        <Text style={styles.resultLocationName}>
+                          {result.location_details.name}
+                        </Text>
+                        {result.location_details.description ? (
+                          <Text style={styles.resultLocationDescription}>
+                            {result.location_details.description}
+                          </Text>
+                        ) : null}
+                        <View style={styles.resultLocationMetaRow}>
+                          <View style={styles.resultLocationPill}>
+                            <Text style={styles.resultLocationLabel}>
+                              Site ID
+                            </Text>
+                            <Text style={styles.resultLocationValue}>
+                              {result.location_details.id}
+                            </Text>
+                          </View>
+                          {result.location_details.slug ? (
+                            <View style={styles.resultLocationPill}>
+                              <Text style={styles.resultLocationLabel}>
+                                Slug
+                              </Text>
+                              <Text style={styles.resultLocationValue}>
+                                {result.location_details.slug}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {fmtCoordinate(result.location_details.center_lat) &&
+                          fmtCoordinate(result.location_details.center_lon) ? (
+                            <View style={styles.resultLocationPill}>
+                              <Text style={styles.resultLocationLabel}>
+                                Center
+                              </Text>
+                              <Text style={styles.resultLocationValue}>
+                                {fmtCoordinate(
+                                  result.location_details.center_lat,
+                                )}
+                                ,{" "}
+                                {fmtCoordinate(
+                                  result.location_details.center_lon,
+                                )}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {fmtCoordinate(result.image_latitude) &&
+                          fmtCoordinate(result.image_longitude) ? (
+                            <View style={styles.resultLocationPill}>
+                              <Text style={styles.resultLocationLabel}>
+                                Image GPS
+                              </Text>
+                              <Text style={styles.resultLocationValue}>
+                                {fmtCoordinate(result.image_latitude)},{" "}
+                                {fmtCoordinate(result.image_longitude)}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                    )}
 
                     <View style={styles.analysisButtonsRow}>
                       <TouchableOpacity
@@ -690,7 +796,18 @@ const styles = StyleSheet.create({
   placeholderImage: { width: "100%", height: "100%", borderRadius: 14 },
 
   formRow: { marginVertical: 8 },
-  fieldLabel: { color: "#9aa6bf", fontWeight: "700", marginBottom: 6 },
+  fieldLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  fieldLabel: { color: "#9aa6bf", fontWeight: "700" },
+  fieldOptionalTag: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#fff",
+    backgroundColor: "#9aa6bf",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    textTransform: "uppercase",
+  },
   fieldValue: { color: "#34495e", fontWeight: "700" },
 
   uploadBtn: {
@@ -711,6 +828,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     fontWeight: "700",
     color: "#34495e",
+  },
+  remarksInput: {
+    minHeight: 84,
   },
   fieldBoxTouchable: {
     backgroundColor: "#f6f9ff",
@@ -770,6 +890,63 @@ const styles = StyleSheet.create({
   analysisSummary: { flex: 1, alignItems: "center", gap: 4 },
   analysisSeverity: { fontWeight: "800", fontSize: 14 },
   analysisStatLine: { color: "#6b7f96", fontSize: 12 },
+  resultLocationCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e6eefc",
+  },
+  resultLocationTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 6,
+  },
+  resultLocationTitle: {
+    color: "#4A78D0",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  resultLocationName: {
+    color: "#1A2B45",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  resultLocationDescription: {
+    color: "#607087",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 5,
+  },
+  resultLocationMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  resultLocationPill: {
+    backgroundColor: "#f6f9ff",
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    flexGrow: 1,
+  },
+  resultLocationLabel: {
+    color: "#9aa6bf",
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 2,
+    textTransform: "uppercase",
+  },
+  resultLocationValue: {
+    color: "#34495e",
+    fontSize: 12,
+    fontWeight: "800",
+  },
   analysisButtonsRow: {
     flexDirection: "row",
     width: "100%",
