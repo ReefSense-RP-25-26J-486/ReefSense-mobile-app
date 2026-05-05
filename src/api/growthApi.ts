@@ -1,5 +1,21 @@
+import * as ImageManipulator from "expo-image-manipulator";
+
 // Base URL
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
+
+/** Resize an image so neither dimension exceeds maxPx, keeping aspect ratio.
+ *  Returns the URI of the resized image (JPEG, quality 0.82). */
+async function resizeForUpload(
+  uri: string,
+  maxPx = 1500,
+): Promise<string> {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: maxPx } }],
+    { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  return result.uri;
+}
 
 function authHeaders(
   token: string,
@@ -75,23 +91,28 @@ export async function analyzeImage(
   token: string,
   locationId: number,
 ): Promise<AnalyzeResult> {
+  // Resize to max 1500px wide before uploading — keeps the HF response
+  // manageable and avoids out-of-memory errors on large iPhone photos.
+  console.log("[Growth] original URI:", imageUri);
+  const uploadUri = await resizeForUpload(imageUri, 1500);
+  console.log("[Growth] resized URI:", uploadUri);
+
   const formData = new FormData();
-
-  const filename = imageUri.split("/").pop() ?? "photo.jpg";
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : "image/jpeg";
-
+  const filename = "coral.jpg";
   // @ts-ignore
-  formData.append("file", { uri: imageUri, name: filename, type });
+  formData.append("file", { uri: uploadUri, name: filename, type: "image/jpeg" });
 
+  console.log("[Growth] sending to:", `${BASE_URL}/api/growth/analyze`);
   const res = await fetch(`${BASE_URL}/api/growth/analyze`, {
     method: "POST",
     body: formData,
     headers: authHeaders(token, locationId),
   });
 
+  console.log("[Growth] response status:", res.status);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    console.error("[Growth] error body:", JSON.stringify(err));
     throw new Error(err.error ?? `Server error ${res.status}`);
   }
 

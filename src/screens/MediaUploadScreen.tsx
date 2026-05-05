@@ -215,7 +215,7 @@ export default function MediaUploadScreen({
     // The full original image is needed for assetId-based location lookup.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1.0,
+      quality: 0.7,   // compress to keep upload under 10 MB for large iPhone photos
       exif: true,
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
