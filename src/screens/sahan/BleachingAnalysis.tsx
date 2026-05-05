@@ -17,7 +17,7 @@ import { Text, TextInput } from "../../components/AppText";
 import { useAuth } from "../../context/AuthContext";
 import { analyzeReef, type AnalyzeResult } from "../../services/api";
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS ?? "";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 interface NurseryOption {
   id: number;
@@ -378,8 +378,15 @@ export default function BleachingAnalysis({ onClose }: Props) {
                   No nurseries available
                 </Text>
               ) : (
-                <Text style={[styles.fieldValue, !nursery && { color: "#aaa", fontWeight: "400" }]}>
-                  {nursery ? `${nursery.name ?? nursery.type}` : "None selected"}
+                <Text
+                  style={[
+                    styles.fieldValue,
+                    !nursery && { color: "#aaa", fontWeight: "400" },
+                  ]}
+                >
+                  {nursery
+                    ? `${nursery.name ?? nursery.type}`
+                    : "None selected"}
                 </Text>
               )}
             </TouchableOpacity>
@@ -450,10 +457,18 @@ export default function BleachingAnalysis({ onClose }: Props) {
 
                 {/* None option */}
                 <TouchableOpacity
-                  onPress={() => { setNursery(null); setShowNurseryModal(false); }}
+                  onPress={() => {
+                    setNursery(null);
+                    setShowNurseryModal(false);
+                  }}
                   style={styles.modalItem}
                 >
-                  <Text style={[styles.fieldValue, !nursery && { color: "#517AAD", fontWeight: "900" }]}>
+                  <Text
+                    style={[
+                      styles.fieldValue,
+                      !nursery && { color: "#517AAD", fontWeight: "900" },
+                    ]}
+                  >
                     None
                   </Text>
                 </TouchableOpacity>
@@ -635,7 +650,10 @@ export default function BleachingAnalysis({ onClose }: Props) {
                     <View style={styles.analysisButtonsRow}>
                       <TouchableOpacity
                         style={styles.analysisAction}
-                        onPress={() => { setShowResult(false); setShowSuggestions(true); }}
+                        onPress={() => {
+                          setShowResult(false);
+                          setShowSuggestions(true);
+                        }}
                       >
                         <Text style={styles.analysisActionText}>
                           Suggestions
@@ -709,7 +727,10 @@ export default function BleachingAnalysis({ onClose }: Props) {
                     );
                   })()}
                 <TouchableOpacity
-                  onPress={() => { setShowSuggestions(false); setShowResult(true); }}
+                  onPress={() => {
+                    setShowSuggestions(false);
+                    setShowResult(true);
+                  }}
                   style={styles.modalClose}
                 >
                   <Text style={styles.modalCloseText}>Back to Results</Text>
@@ -796,7 +817,12 @@ const styles = StyleSheet.create({
   placeholderImage: { width: "100%", height: "100%", borderRadius: 14 },
 
   formRow: { marginVertical: 8 },
-  fieldLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  fieldLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
   fieldLabel: { color: "#9aa6bf", fontWeight: "700" },
   fieldOptionalTag: {
     fontSize: 10,

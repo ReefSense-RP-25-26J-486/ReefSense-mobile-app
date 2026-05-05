@@ -18,7 +18,7 @@ import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
 import { ImageCoords } from "./MediaUploadScreen";
 
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS ?? "";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 interface NurseryOption {
   id: number;
