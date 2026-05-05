@@ -71,7 +71,7 @@ export default function StressScreen({ onBack }: StressScreenProps) {
         let dailyPeaks: number[] = [];
         for (let i = 0; i < rawValues.length; i += 4) {
             const daySlice = rawValues.slice(i, i + 4).map((v: any) => parseFloat(v));
-            const validSlice = daySlice.filter(v => !isNaN(v));
+            const validSlice = daySlice.filter((v: number) => !isNaN(v));
             dailyPeaks.push(validSlice.length > 0 ? Math.max(...validSlice) : 0);
         }
         return dailyPeaks.length >= 7 ? dailyPeaks.slice(0, 7) : dailyPeaks.concat(new Array(7 - dailyPeaks.length).fill(0));

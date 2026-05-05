@@ -6,7 +6,7 @@
  * it to Files, Google Drive, email it, etc.
  */
 
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 
@@ -56,13 +56,9 @@ export async function exportToCsv(
   try {
     const csv = buildCsv(data, columns);
     const safeFilename = filename.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const path = `${FileSystem.cacheDirectory}${safeFilename}.csv`;
+    const file = new File(Paths.cache, `${safeFilename}.csv`);
 
-    // Use the string literal directly — FileSystem.EncodingType is not reliably
-    // re-exported at runtime on React Native new architecture builds.
-    await FileSystem.writeAsStringAsync(path, csv, {
-      encoding: 'utf8' as any,
-    });
+    file.write(csv);
 
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) {
@@ -73,7 +69,7 @@ export async function exportToCsv(
       return;
     }
 
-    await Sharing.shareAsync(path, {
+    await Sharing.shareAsync(file.uri, {
       mimeType: 'text/csv',
       dialogTitle: `Export ${safeFilename}.csv`,
       UTI: 'public.comma-separated-values-text',
