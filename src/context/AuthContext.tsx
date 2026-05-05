@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
+const PROFILE_TIMEOUT_MS = 10000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,17 @@ function decodeToken(token: string): any {
   }
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PROFILE_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -67,7 +79,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load profile + locations from the server using a token
   const loadProfile = useCallback(async (jwt: string): Promise<void> => {
-    const res = await fetch(`${BASE_URL}/api/auth/profile`, {
+    if (!BASE_URL) {
+      throw new Error('Missing EXPO_PUBLIC_API_URL');
+    }
+
+    const res = await fetchWithTimeout(`${BASE_URL}/api/auth/profile`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
     if (!res.ok) throw new Error('Session expired');
@@ -109,7 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(stored);
         await loadProfile(stored);
       } catch {
-        await AsyncStorage.removeItem('authToken');
+        setToken(null);
+        setUser(null);
+        setUserLocations([]);
+        setSelectedLocationState(null);
+        await AsyncStorage.multiRemove(['authToken', 'selectedLocationId']);
       } finally {
         setIsLoading(false);
       }

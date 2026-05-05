@@ -11,6 +11,15 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:3000";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export interface LocationDetails {
+  id: number;
+  name: string;
+  slug?: string | null;
+  center_lat?: number | string | null;
+  center_lon?: number | string | null;
+  description?: string | null;
+}
+
 export interface AnalyzeResult {
   coral_detected: number;
   bleaching_detected: number;
@@ -18,6 +27,10 @@ export interface AnalyzeResult {
   original_image_url: string;
   annotated_image_url: string;
   coral_id?: string | number;
+  remarks?: string | null;
+  image_latitude?: number | string | null;
+  image_longitude?: number | string | null;
+  location_details?: LocationDetails | null;
 }
 
 export interface HistoryRecord {
@@ -32,6 +45,10 @@ export interface HistoryRecord {
   original_image_url: string;
   annotated_image_url: string;
   created_at: string;
+  remarks?: string | null;
+  image_latitude?: number | string | null;
+  image_longitude?: number | string | null;
+  location_details?: LocationDetails | null;
 }
 
 // Shape of the raw GET /history response from the backend
@@ -79,6 +96,10 @@ function parseNumericFields(rec: HistoryRecord): HistoryRecord {
     coral_detected: Number(rec.coral_detected),
     bleaching_detected: Number(rec.bleaching_detected),
     bleaching_percentage: Number(rec.bleaching_percentage),
+    image_latitude:
+      rec.image_latitude != null ? Number(rec.image_latitude) : rec.image_latitude,
+    image_longitude:
+      rec.image_longitude != null ? Number(rec.image_longitude) : rec.image_longitude,
   };
 }
 
@@ -89,6 +110,10 @@ function parseAnalyzeResult(r: AnalyzeResult): AnalyzeResult {
     bleaching_detected: Number(r.bleaching_detected),
     bleaching_percentage: Number(r.bleaching_percentage),
     coral_id: r.coral_id !== undefined ? String(r.coral_id) : r.coral_id,
+    image_latitude:
+      r.image_latitude != null ? Number(r.image_latitude) : r.image_latitude,
+    image_longitude:
+      r.image_longitude != null ? Number(r.image_longitude) : r.image_longitude,
   };
 }
 
@@ -105,6 +130,7 @@ export async function analyzeReef(
     date: string; // ISO string
     nursery: string;
     coral_id?: string;
+    remarks?: string;
   },
   token: string,
   locationId: number,
@@ -122,6 +148,9 @@ export async function analyzeReef(
   formData.append("nursery", params.nursery);
   if (params.coral_id !== undefined) {
     formData.append("coral_id", params.coral_id);
+  }
+  if (params.remarks !== undefined) {
+    formData.append("remarks", params.remarks);
   }
 
   const res = await fetch(`${BASE_URL}/api/bleaching/analyze`, {
