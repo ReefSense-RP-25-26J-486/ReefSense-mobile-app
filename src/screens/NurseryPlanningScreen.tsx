@@ -17,10 +17,7 @@ import {
 import MapView, { Marker, Polygon } from "react-native-maps";
 import { Circle, Ellipse, Line, Path, Rect, Svg } from "react-native-svg";
 import { Text, TextInput } from "../components/AppText";
-import OfflineBanner from "../components/OfflineBanner";
 import { useAuth } from "../context/AuthContext";
-import { useNetworkStatus } from "../hooks/useNetworkStatus";
-import { CacheKey, CacheMaxAge, cacheGet, cacheSet, formatCacheAge } from "../utils/cache";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -274,8 +271,6 @@ interface NurseryTypeInfo {
 
 export default function NurseryPlanningScreen() {
   const { token, selectedLocation: authLocation } = useAuth();
-  const { isOnline } = useNetworkStatus();
-  const [gisCache, setGisCache] = useState<string | undefined>();
   const mapRef = useRef<MapView>(null);
 
   // ── Bottom-sheet animation ────────────────────────────────────────────────────
@@ -381,29 +376,6 @@ export default function NurseryPlanningScreen() {
   });
 
   const fetchAll = useCallback(async () => {
-    const locId = authLocation?.id ?? 0;
-    const nursKey = CacheKey.gisNurseries(locId);
-    const cpKey   = CacheKey.gisCandidatePoints(locId);
-
-    // ── Offline path ──────────────────────────────────────────────────────────
-    if (!isOnline) {
-      const [nursCached, cpCached] = await Promise.all([
-        cacheGet<any>(nursKey, CacheMaxAge.gisNurseries),
-        cacheGet<any>(cpKey,   CacheMaxAge.gisCandidatePoints),
-      ]);
-      if (nursCached) {
-        setNurseries(nursCached.data.nurseries ?? []);
-        setGisCache(formatCacheAge(nursCached.cachedAt));
-      }
-      if (cpCached) {
-        setAvailablePoints(cpCached.data.available ?? []);
-        setUnavailablePoints(cpCached.data.unavailable ?? []);
-      }
-      setInitialLoading(false);
-      return;
-    }
-
-    // ── Online path ───────────────────────────────────────────────────────────
     try {
       const hdrs = gisHeaders();
       const [nursRes, avRes, unavRes, typesRes, zoneRes] = await Promise.all([
@@ -413,41 +385,35 @@ export default function NurseryPlanningScreen() {
         fetch(`${BASE_URL}/api/gis/nursery-types`, { headers: hdrs }),
         fetch(`${BASE_URL}/api/gis/restoration-zone`, { headers: hdrs }),
       ]);
-      const nursData = nursRes.ok ? await nursRes.json() : null;
-      const avData   = avRes.ok   ? await avRes.json()   : null;
-      const unavData = unavRes.ok ? await unavRes.json() : null;
-
-      if (nursData) {
-        setNurseries(nursData.nurseries ?? []);
-        await cacheSet(nursKey, nursData);
-        setGisCache(undefined);
+      if (nursRes.ok) {
+        const d = await nursRes.json();
+        setNurseries(d.nurseries ?? []);
       }
-      if (avData)   setAvailablePoints(avData.points ?? []);
-      if (unavData) setUnavailablePoints(unavData.points ?? []);
-      if (avData || unavData) {
-        await cacheSet(cpKey, {
-          available:   avData?.points   ?? [],
-          unavailable: unavData?.points ?? [],
-        });
+      if (avRes.ok) {
+        const d = await avRes.json();
+        setAvailablePoints(d.points ?? []);
       }
-      if (typesRes.ok) { const d = await typesRes.json(); setNurseryTypes(d.nursery_types ?? {}); }
-      if (zoneRes.ok)  {
+      if (unavRes.ok) {
+        const d = await unavRes.json();
+        setUnavailablePoints(d.points ?? []);
+      }
+      if (typesRes.ok) {
+        const d = await typesRes.json();
+        setNurseryTypes(d.nursery_types ?? {});
+      }
+      if (zoneRes.ok) {
         const d = await zoneRes.json();
-        if (d.coordinates && d.area_m2 != null) setRestorationZone({ coordinates: d.coordinates, area_m2: d.area_m2 });
+        if (d.coordinates && d.area_m2 != null) {
+          setRestorationZone({ coordinates: d.coordinates, area_m2: d.area_m2 });
+        }
       }
     } catch (e) {
       console.warn("GIS fetch error:", e);
-      // Fallback to cache on error
-      const nursCached = await cacheGet<any>(nursKey, CacheMaxAge.gisNurseries);
-      if (nursCached) {
-        setNurseries(nursCached.data.nurseries ?? []);
-        setGisCache(formatCacheAge(nursCached.cachedAt));
-      }
     } finally {
       setInitialLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, authLocation, isOnline]);
+  }, [token, authLocation]);
 
   useEffect(() => {
     fetchAll();
@@ -1181,13 +1147,10 @@ export default function NurseryPlanningScreen() {
           </View>
         </View>
         <TouchableOpacity
-          style={[styles.primaryBtn, { marginTop: 16 }, !isOnline && { opacity: 0.5 }]}
-          onPress={() => isOnline && setView("ADD_STEP1")}
-          disabled={!isOnline}
+          style={[styles.primaryBtn, { marginTop: 16 }]}
+          onPress={() => setView("ADD_STEP1")}
         >
-          <Text style={styles.primaryBtnText}>
-            {isOnline ? "Add a Nursery Here" : "Add Nursery (requires internet)"}
-          </Text>
+          <Text style={styles.primaryBtnText}>Add a Nursery Here</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.backLink}
@@ -1733,7 +1696,6 @@ export default function NurseryPlanningScreen() {
 
   return (
     <View style={styles.container}>
-      {!isOnline && <OfflineBanner cacheLabel={gisCache} />}
       {needsMap && renderMap()}
 
       {needsMap && (
