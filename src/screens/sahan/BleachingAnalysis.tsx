@@ -29,6 +29,12 @@ interface Props {
   onClose: () => void;
 }
 
+const fmtCoordinate = (value?: number | string | null) => {
+  if (value == null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(5) : String(value);
+};
+
 export default function BleachingAnalysis({ onClose }: Props) {
   const { token, selectedLocation } = useAuth();
   const [location, setLocation] = useState("Tropical Bay");
@@ -39,6 +45,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
   const [loadingNurseries, setLoadingNurseries] = useState(false);
   const [showNurseryModal, setShowNurseryModal] = useState(false);
   const [coralId, setCoralId] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
 
@@ -163,6 +170,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
             ? `${nursery.name ?? nursery.type} #${nursery.id}`
             : "",
           coral_id: coralId.trim(),
+          remarks: remarks.trim(),
         },
         token!,
         selectedLocation!.id,
@@ -374,6 +382,18 @@ export default function BleachingAnalysis({ onClose }: Props) {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.formRow}>
+            <Text style={styles.fieldLabel}>Remarks</Text>
+            <TextInput
+              value={remarks}
+              onChangeText={setRemarks}
+              placeholder="Enter remarks"
+              style={[styles.input, styles.remarksInput]}
+              multiline
+              textAlignVertical="top"
+            />
+          </View>
+
           {/* Upload image button */}
           <Pressable
             onPress={openImageOptions}
@@ -525,6 +545,78 @@ export default function BleachingAnalysis({ onClose }: Props) {
                         </Text>
                       </View>
                     </View>
+
+                    {result.location_details && (
+                      <View style={styles.resultLocationCard}>
+                        <View style={styles.resultLocationTitleRow}>
+                          <Ionicons
+                            name="map-outline"
+                            size={17}
+                            color="#4A78D0"
+                          />
+                          <Text style={styles.resultLocationTitle}>
+                            Research Site
+                          </Text>
+                        </View>
+                        <Text style={styles.resultLocationName}>
+                          {result.location_details.name}
+                        </Text>
+                        {result.location_details.description ? (
+                          <Text style={styles.resultLocationDescription}>
+                            {result.location_details.description}
+                          </Text>
+                        ) : null}
+                        <View style={styles.resultLocationMetaRow}>
+                          <View style={styles.resultLocationPill}>
+                            <Text style={styles.resultLocationLabel}>
+                              Site ID
+                            </Text>
+                            <Text style={styles.resultLocationValue}>
+                              {result.location_details.id}
+                            </Text>
+                          </View>
+                          {result.location_details.slug ? (
+                            <View style={styles.resultLocationPill}>
+                              <Text style={styles.resultLocationLabel}>
+                                Slug
+                              </Text>
+                              <Text style={styles.resultLocationValue}>
+                                {result.location_details.slug}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {fmtCoordinate(result.location_details.center_lat) &&
+                          fmtCoordinate(result.location_details.center_lon) ? (
+                            <View style={styles.resultLocationPill}>
+                              <Text style={styles.resultLocationLabel}>
+                                Center
+                              </Text>
+                              <Text style={styles.resultLocationValue}>
+                                {fmtCoordinate(
+                                  result.location_details.center_lat,
+                                )}
+                                ,{" "}
+                                {fmtCoordinate(
+                                  result.location_details.center_lon,
+                                )}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {fmtCoordinate(result.image_latitude) &&
+                          fmtCoordinate(result.image_longitude) ? (
+                            <View style={styles.resultLocationPill}>
+                              <Text style={styles.resultLocationLabel}>
+                                Image GPS
+                              </Text>
+                              <Text style={styles.resultLocationValue}>
+                                {fmtCoordinate(result.image_latitude)},{" "}
+                                {fmtCoordinate(result.image_longitude)}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                    )}
 
                     <View style={styles.analysisButtonsRow}>
                       <TouchableOpacity
@@ -712,6 +804,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#34495e",
   },
+  remarksInput: {
+    minHeight: 84,
+  },
   fieldBoxTouchable: {
     backgroundColor: "#f6f9ff",
     padding: 12,
@@ -770,6 +865,63 @@ const styles = StyleSheet.create({
   analysisSummary: { flex: 1, alignItems: "center", gap: 4 },
   analysisSeverity: { fontWeight: "800", fontSize: 14 },
   analysisStatLine: { color: "#6b7f96", fontSize: 12 },
+  resultLocationCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e6eefc",
+  },
+  resultLocationTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 6,
+  },
+  resultLocationTitle: {
+    color: "#4A78D0",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  resultLocationName: {
+    color: "#1A2B45",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  resultLocationDescription: {
+    color: "#607087",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 5,
+  },
+  resultLocationMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  resultLocationPill: {
+    backgroundColor: "#f6f9ff",
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    flexGrow: 1,
+  },
+  resultLocationLabel: {
+    color: "#9aa6bf",
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 2,
+    textTransform: "uppercase",
+  },
+  resultLocationValue: {
+    color: "#34495e",
+    fontSize: 12,
+    fontWeight: "800",
+  },
   analysisButtonsRow: {
     flexDirection: "row",
     width: "100%",
