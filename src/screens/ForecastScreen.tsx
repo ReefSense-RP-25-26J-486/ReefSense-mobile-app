@@ -1,6 +1,8 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Dimensions, FlatList, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Text } from '../components/AppText';
+import { exportToCsv } from "../utils/exportCsv";
 import { LineChart } from "react-native-chart-kit";
 
 const screenWidth = Dimensions.get("window").width;
@@ -13,20 +15,27 @@ const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_MODEL_TEMP
 export default function ForecastScreen({ onBack }: { onBack: () => void }) {
     const [apiData, setApiData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [selectedDepth, setSelectedDepth] = useState<DepthKey>("3m");
 
-    useEffect(() => {
+    const fetchData = (isPullRefresh = false) => {
+        if (isPullRefresh) setRefreshing(true);
+        else setLoading(true);
         fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
             .then((json) => {
                 setApiData(json);
-                setLoading(false);
             })
             .catch((err) => {
                 console.error("Forecast Fetch Error:", err);
+            })
+            .finally(() => {
                 setLoading(false);
+                setRefreshing(false);
             });
-    }, []);
+    };
+
+    useEffect(() => { fetchData(); }, []);
 
     const getBaseDate = () => {
         const rawString = apiData?.header?.reading_time;
@@ -130,6 +139,34 @@ export default function ForecastScreen({ onBack }: { onBack: () => void }) {
 
     const stability = getStabilityData();
 
+    const handleExport = () => {
+        const depthLabels: Record<DepthKey, string> = { "3m": "0-2m", "7m": "3-6m", "10m": "7-10m" };
+        const items = (["3m", "7m", "10m"] as DepthKey[]).flatMap((depth) => {
+            const rawValues = apiData?.details?.[depth]?.graph_values || [];
+            return formatFullForecast().map((item: any) => ({
+                date: item.dateDisplay,
+                time: item.time,
+                depth: depthLabels[depth],
+                temperature: item.temp,
+            }));
+        });
+        exportToCsv(
+            'temperature_forecast_7day',
+            formatFullForecast().map((item: any) => ({
+                date: item.dateDisplay,
+                time: item.time,
+                temperature: item.temp,
+                depth: depthLabels[selectedDepth],
+            })),
+            [
+                { key: 'date',        label: 'Date' },
+                { key: 'time',        label: 'Time' },
+                { key: 'depth',       label: 'Depth' },
+                { key: 'temperature', label: 'Temperature (°C)' },
+            ],
+        );
+    };
+
     if (loading || !apiData) {
         return (
             <View style={styles.loadingContainer}>
@@ -144,13 +181,29 @@ export default function ForecastScreen({ onBack }: { onBack: () => void }) {
     const forecastItems = formatFullForecast();
 
     return (
-        <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
-
+        <ScrollView
+            style={styles.screen}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => fetchData(true)}
+                    colors={["#517AAD"]}
+                    tintColor="#517AAD"
+                />
+            }
+        >
             <TouchableOpacity onPress={onBack} style={styles.backLink}>
                 <Text style={styles.backText}>{"< Return to Overview"}</Text>
             </TouchableOpacity>
 
-            <Text style={styles.pageTitle}>Temperature Fluctuation Predictions</Text>
+            <View style={styles.titleRow}>
+                <Text style={styles.pageTitle}>Temperature Fluctuation Predictions</Text>
+                <TouchableOpacity onPress={handleExport} style={styles.exportBtn}>
+                    <MaterialIcons name="file-download" size={20} color="#517AAD" />
+                    <Text style={styles.exportBtnText}>Export</Text>
+                </TouchableOpacity>
+            </View>
 
             {/* Depth Selection Buttons */}
             <View style={styles.buttonRow}>
@@ -275,13 +328,29 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginTop: 8,
     },
-    pageTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#000',
-        marginTop: 0,
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 10,
     },
+    pageTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#000',
+        flex: 1,
+        marginRight: 8,
+    },
+    exportBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#EEF4FF',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    exportBtnText: { fontSize: 13, fontWeight: '700', color: '#517AAD' },
     buttonRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',

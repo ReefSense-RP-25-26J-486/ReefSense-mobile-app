@@ -6,6 +6,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -15,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from '../../components/AppText';
 import { useAuth } from '../../context/AuthContext';
 import { fetchHistory, type HistoryRecord } from "../../services/api";
+import { exportToCsv } from "../../utils/exportCsv";
 
 const colors = {
   primary: "#4A78D0",
@@ -81,15 +83,17 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
   const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<HistoryRecord | null>(
     null,
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isPullRefresh = false) => {
     if (!token || !selectedLocation) return;
     try {
-      setLoading(true);
+      if (isPullRefresh) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
@@ -97,12 +101,47 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
       setError(err?.message ?? "Failed to load history.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [token, selectedLocation]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleExport = () => {
+    exportToCsv(
+      'bleaching_history',
+      records.map((r) => ({
+        id: r.id,
+        date: fmtDate(r.date),
+        location: r.location_details?.name ?? r.location,
+        nursery: r.nursery,
+        coral_id: r.coral_id ?? '',
+        coral_detected: r.coral_detected,
+        bleaching_detected: r.bleaching_detected,
+        healthy_corals: r.coral_detected - r.bleaching_detected,
+        bleaching_percentage: r.bleaching_percentage.toFixed(1),
+        severity: getSeverity(r.bleaching_percentage).label,
+        latitude: r.image_latitude ?? '',
+        longitude: r.image_longitude ?? '',
+      })),
+      [
+        { key: 'id',                  label: 'ID' },
+        { key: 'date',                label: 'Date' },
+        { key: 'location',            label: 'Location' },
+        { key: 'nursery',             label: 'Nursery' },
+        { key: 'coral_id',            label: 'Coral ID' },
+        { key: 'coral_detected',      label: 'Coral Detected' },
+        { key: 'bleaching_detected',  label: 'Bleaching Detected' },
+        { key: 'healthy_corals',      label: 'Healthy Corals' },
+        { key: 'bleaching_percentage',label: 'Bleaching %' },
+        { key: 'severity',            label: 'Severity' },
+        { key: 'latitude',            label: 'Latitude' },
+        { key: 'longitude',           label: 'Longitude' },
+      ],
+    );
+  };
 
   // Summary counts derived from records
   const totalBleached = records.filter(
@@ -130,16 +169,31 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
           <Text style={styles.backText}>Overview</Text>
         </TouchableOpacity>
-        {!loading && (
-          <TouchableOpacity onPress={load} style={styles.refreshBtn}>
-            <MaterialIcons name="refresh" size={22} color={colors.primary} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.topBarActions}>
+          {!loading && records.length > 0 && (
+            <TouchableOpacity onPress={handleExport} style={styles.iconBtn}>
+              <MaterialIcons name="file-download" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          {!loading && (
+            <TouchableOpacity onPress={() => load()} style={styles.iconBtn}>
+              <MaterialIcons name="refresh" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* ── Page heading ────────────────────────────────────────────── */}
         <Text style={styles.pageTitle}>Analysis History</Text>
@@ -185,7 +239,7 @@ export default function BleachingHistory({ onBack }: { onBack?: () => void }) {
               color={colors.bleached}
             />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={load} style={styles.retryBtn}>
+            <TouchableOpacity onPress={() => load()} style={styles.retryBtn}>
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -756,7 +810,8 @@ const styles = StyleSheet.create({
   },
   backLink: { flexDirection: "row", alignItems: "center", gap: 4 },
   backText: { color: colors.primary, fontWeight: "700", fontSize: 15 },
-  refreshBtn: { padding: 6 },
+  topBarActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  iconBtn: { padding: 6 },
 
   /* Scroll content */
   container: { paddingHorizontal: 16, paddingTop: 16 },

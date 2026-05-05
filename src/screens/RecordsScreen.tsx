@@ -1,8 +1,9 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '../components/AppText';
 import { useAuth } from '../context/AuthContext';
+import { exportToCsv } from '../utils/exportCsv';
 
 interface RecordsScreenProps {
     onBack: () => void;
@@ -15,11 +16,13 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
     const { token, selectedLocation } = useAuth();
     const [tableData, setTableData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
 
-    const fetchRecords = async () => {
-        setLoading(true);
+    const fetchRecords = async (isPullRefresh = false) => {
+        if (isPullRefresh) setRefreshing(true);
+        else setLoading(true);
         try {
             const response = await fetch(`${BASE_URL}/api/data/records`, {
                 headers: {
@@ -35,7 +38,34 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
             Alert.alert("Error", "Could not connect to database.");
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
+    };
+
+    const handleExport = () => {
+        exportToCsv(
+            'temperature_records',
+            tableData.map((item) => ({
+                record_code: item.record_code ?? '',
+                date:        item.date,
+                time:        item.time,
+                temp_0_2m:   item.temp3m,
+                temp_3_6m:   item.temp7m,
+                temp_7_10m:  item.temp10m,
+                latitude:    item.latitude ?? '',
+                longitude:   item.longitude ?? '',
+            })),
+            [
+                { key: 'record_code', label: 'Record Code' },
+                { key: 'date',        label: 'Date' },
+                { key: 'time',        label: 'Time' },
+                { key: 'temp_0_2m',   label: 'Temp 0-2m (°C)' },
+                { key: 'temp_3_6m',   label: 'Temp 3-6m (°C)' },
+                { key: 'temp_7_10m',  label: 'Temp 7-10m (°C)' },
+                { key: 'latitude',    label: 'Latitude' },
+                { key: 'longitude',   label: 'Longitude' },
+            ],
+        );
     };
 
     const handleDelete = (dbId: number) => {
@@ -106,10 +136,23 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
                 <Text style={styles.backText}>{"< Return to Overview"}</Text>
             </TouchableOpacity>
 
-            <Text style={styles.pageTitle}>Coral Temperature Records</Text>
-            <Text style={styles.dateSubTitle}>Record History</Text>
+            <View style={styles.titleRow}>
+                <View>
+                    <Text style={styles.pageTitle}>Coral Temperature Records</Text>
+                    <Text style={styles.dateSubTitle}>Record History</Text>
+                </View>
+                {!loading && tableData.length > 0 && (
+                    <TouchableOpacity onPress={handleExport} style={styles.exportBtn}>
+                        <MaterialIcons name="file-download" size={20} color="#517AAD" />
+                        <Text style={styles.exportBtnText}>Export</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
 
-            <View style={styles.tableCard}>
+            <View style={[styles.tableCard, { flex: 1 }]}>
+                {refreshing && (
+                    <ActivityIndicator size="small" color="#517AAD" style={{ marginBottom: 8 }} />
+                )}
                 {loading ? (
                     <ActivityIndicator size="large" color="#517AAD" style={{ flex: 1 }} />
                 ) : tableData.length === 0 ? (
@@ -119,7 +162,17 @@ const RecordsScreen: React.FC<RecordsScreenProps> = ({ onBack, onAdd }) => {
                         <Text style={styles.emptySubText}>Tap + to start recording.</Text>
                     </View>
                 ) : (
-                    <ScrollView showsVerticalScrollIndicator={true}>
+                    <ScrollView
+                        showsVerticalScrollIndicator={true}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={() => fetchRecords(true)}
+                                colors={["#517AAD"]}
+                                tintColor="#517AAD"
+                            />
+                        }
+                    >
                         <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                             <View>
                                 {/* TABLE HEADER */}
@@ -230,6 +283,22 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 16
     },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    exportBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#EEF4FF',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    exportBtnText: { fontSize: 13, fontWeight: '700', color: '#517AAD' },
     pageTitle: {
         fontSize: 20,
         fontWeight: 'bold',

@@ -67,7 +67,7 @@ export default function BleachingAnalysis({ onClose }: Props) {
           type: n.type,
         }));
         setNurseryOptions(list);
-        if (list.length > 0) setNursery(list[0]);
+        // Do not pre-select — nursery is optional, user must pick explicitly
       })
       .catch(() => {})
       .finally(() => setLoadingNurseries(false));
@@ -361,7 +361,10 @@ export default function BleachingAnalysis({ onClose }: Props) {
           </View>
 
           <View style={styles.formRow}>
-            <Text style={styles.fieldLabel}>Nursery</Text>
+            <View style={styles.fieldLabelRow}>
+              <Text style={styles.fieldLabel}>Nursery</Text>
+              <Text style={styles.fieldOptionalTag}>optional</Text>
+            </View>
             <TouchableOpacity
               onPress={() =>
                 nurseryOptions.length > 0 && setShowNurseryModal(true)
@@ -372,11 +375,11 @@ export default function BleachingAnalysis({ onClose }: Props) {
                 <ActivityIndicator size="small" color="#517AAD" />
               ) : nurseryOptions.length === 0 ? (
                 <Text style={[styles.fieldValue, { color: "#aaa" }]}>
-                  No nurseries found
+                  No nurseries available
                 </Text>
               ) : (
-                <Text style={styles.fieldValue}>
-                  {nursery ? `${nursery.name ?? ""}` : "Select nursery"}
+                <Text style={[styles.fieldValue, !nursery && { color: "#aaa", fontWeight: "400" }]}>
+                  {nursery ? `${nursery.name ?? nursery.type}` : "None selected"}
                 </Text>
               )}
             </TouchableOpacity>
@@ -444,6 +447,17 @@ export default function BleachingAnalysis({ onClose }: Props) {
             <View style={styles.modalOverlay}>
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Select Nursery</Text>
+
+                {/* None option */}
+                <TouchableOpacity
+                  onPress={() => { setNursery(null); setShowNurseryModal(false); }}
+                  style={styles.modalItem}
+                >
+                  <Text style={[styles.fieldValue, !nursery && { color: "#517AAD", fontWeight: "900" }]}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+
                 {nurseryOptions.map((n) => {
                   const label = `${n.name ?? n.type} #${n.id}`;
                   const isSelected = nursery?.id === n.id;
@@ -782,7 +796,18 @@ const styles = StyleSheet.create({
   placeholderImage: { width: "100%", height: "100%", borderRadius: 14 },
 
   formRow: { marginVertical: 8 },
-  fieldLabel: { color: "#9aa6bf", fontWeight: "700", marginBottom: 6 },
+  fieldLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  fieldLabel: { color: "#9aa6bf", fontWeight: "700" },
+  fieldOptionalTag: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#fff",
+    backgroundColor: "#9aa6bf",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    textTransform: "uppercase",
+  },
   fieldValue: { color: "#34495e", fontWeight: "700" },
 
   uploadBtn: {

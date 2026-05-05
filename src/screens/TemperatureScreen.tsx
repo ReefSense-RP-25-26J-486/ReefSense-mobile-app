@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Text } from '../components/AppText';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,6 +19,7 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
     const { selectedLocation } = useAuth();
     const [apiData, setApiData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const getTimeBlock = () => {
         const hour = new Date().getHours();
         if (hour >= 0 && hour < 6) return "00:00 AM - 06:00 AM";
@@ -46,16 +47,25 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
         (Math.abs((selectedLocation as any).center_lat - PORT_CITY_LAT) < 0.08 &&
          Math.abs((selectedLocation as any).center_lon - PORT_CITY_LON) < 0.08);
 
-    useEffect(() => {
-        // Skip fetch if location isn't Port City or if the AI service URL isn't configured
-        if (!isPortCity || !BASE_URL) { setLoading(false); setApiData(null); return; }
-        setLoading(true);
+    const fetchData = useCallback((isPullRefresh = false) => {
+        if (!isPortCity || !BASE_URL) {
+            setLoading(false);
+            setApiData(null);
+            return;
+        }
+        if (isPullRefresh) setRefreshing(true);
+        else setLoading(true);
         fetch(`${BASE_URL}/api/dashboard`)
             .then((res) => res.json())
-            .then((json) => { setApiData(json); setLoading(false); })
-            .catch((err) => { console.error("AI Fetch Error:", err); setLoading(false); });
+            .then((json) => { setApiData(json); })
+            .catch((err) => { console.error("AI Fetch Error:", err); })
+            .finally(() => { setLoading(false); setRefreshing(false); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPortCity]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const mainTemp = (isPortCity && apiData?.header?.main_temp)
         ? `${Math.round(parseFloat(apiData.header.main_temp))}°C`
@@ -80,7 +90,18 @@ export default function TemperatureScreen({ onGoToForecast, onGoToStress, onGoTo
     }
 
     return (
-        <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+        <ScrollView
+            style={styles.screen}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => fetchData(true)}
+                    colors={["#4A78D0"]}
+                    tintColor="#4A78D0"
+                />
+            }
+        >
             {/* Weather Header Section */}
             <View style={styles.weatherSection}>
                 <View>

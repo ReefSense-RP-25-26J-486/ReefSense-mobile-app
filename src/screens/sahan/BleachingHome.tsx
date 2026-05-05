@@ -5,6 +5,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -59,17 +60,20 @@ export default function BleachingDetectionScreen({
   const { token, selectedLocation } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isPullRefresh = false) => {
     if (!token || !selectedLocation) return;
     try {
-      setLoading(true);
+      if (isPullRefresh) setRefreshing(true);
+      else setLoading(true);
       const data = await fetchHistory(token, selectedLocation.id);
       setRecords(data);
     } catch {
       setRecords([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -132,6 +136,14 @@ export default function BleachingDetectionScreen({
         <ScrollView
           contentContainerStyle={{ paddingBottom: 180 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(true)}
+              colors={["#4A78D0"]}
+              tintColor="#4A78D0"
+            />
+          }
         >
           {/* Back link */}
           {onBack && (
