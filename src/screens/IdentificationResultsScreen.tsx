@@ -13,10 +13,10 @@ import {
   View,
 } from "react-native";
 import { AnalyzedCoral, saveGrowthRecord } from "../api/growthApi";
-import { ImageCoords } from "./MediaUploadScreen";
 import { Text, TextInput } from "../components/AppText";
 import { colors } from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
+import { ImageCoords } from "./MediaUploadScreen";
 
 const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_GIS ?? "";
 
@@ -43,9 +43,10 @@ interface Props {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function confStyle(conf: number) {
-  if (conf >= 0.8) return { bg: "#85ffa1", color: "#06a42b", label: "HIGH" };
-  if (conf >= 0.5) return { bg: "#fef65e", color: "#c39304", label: "MED" };
-  return { bg: "#f78992", color: "#b70c1d", label: "LOW" };
+  console.log("[confStyle] raw confidence value:", conf, typeof conf);
+  if (conf >= 0.8) return { bg: "#85ffa1", color: "#06a42b", label: "High" };
+  if (conf >= 0.5) return { bg: "#fef65e", color: "#c39304", label: "Medium" };
+  return { bg: "#f78992", color: "#b70c1d", label: "Low" };
 }
 
 function getTagPos(
@@ -302,7 +303,9 @@ export default function IdentificationResultsScreen({
             ) : (
               <Text
                 style={
-                  selectedNursery ? styles.nurseryValue : styles.nurseryPlaceholder
+                  selectedNursery
+                    ? styles.nurseryValue
+                    : styles.nurseryPlaceholder
                 }
               >
                 {selectedNursery
@@ -399,7 +402,11 @@ export default function IdentificationResultsScreen({
                   </Text>
                   <View style={[styles.confBadge, { backgroundColor: cs.bg }]}>
                     <Text style={[styles.confLabel, { color: cs.color }]}>
-                      {cs.label}
+                      {cs.label} (
+                      {typeof coral.confidence === "number"
+                        ? coral.confidence.toFixed(2)
+                        : coral.confidence}
+                      )
                     </Text>
                   </View>
                 </View>
@@ -574,7 +581,11 @@ const styles = StyleSheet.create({
   nurseryPlaceholder: { fontSize: 14, color: "#aaa" },
 
   // Remarks
-  remarksRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 16 },
+  remarksRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
   remarksInput: {
     flex: 1,
     backgroundColor: colors.card,
